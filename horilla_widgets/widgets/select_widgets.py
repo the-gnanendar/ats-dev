@@ -72,7 +72,8 @@ class HorillaMultiSelectWidget(forms.Widget):
             context["initial"] = []
         context["field"] = field
         context["self"] = self
-        context["filter_template_path"] = self.filter_template_path
+        # Use default template path if none is specified
+        context["filter_template_path"] = self.filter_template_path or "horilla_widgets/no_filter_template.html"
         context["filter_route_name"] = self.filter_route_name
         context["required"] = self.required
         context["help_text"] = self.help_text

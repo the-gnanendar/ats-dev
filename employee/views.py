@@ -2829,8 +2829,8 @@ def total_employees_count(request):
 def joining_today_count(request):
     newbies_today = 0
     if apps.is_installed("recruitment"):
-        Candidate = get_horilla_model_class(app_label="recruitment", model="candidate")
-        newbies_today = Candidate.objects.filter(
+        CandidateApplication = get_horilla_model_class(app_label="recruitment", model="candidateapplication")
+        newbies_today = CandidateApplication.objects.filter(
             joining_date__range=[date.today(), date.today() + timedelta(days=1)],
             is_active=True,
         ).count()
@@ -2841,8 +2841,8 @@ def joining_today_count(request):
 def joining_week_count(request):
     newbies_week = 0
     if apps.is_installed("recruitment"):
-        Candidate = get_horilla_model_class(app_label="recruitment", model="candidate")
-        newbies_week = Candidate.objects.filter(
+        CandidateApplication = get_horilla_model_class(app_label="recruitment", model="candidateapplication")
+        newbies_week = CandidateApplication.objects.filter(
             joining_date__range=[
                 date.today() - timedelta(days=date.today().weekday()),
                 date.today() + timedelta(days=6 - date.today().weekday()),

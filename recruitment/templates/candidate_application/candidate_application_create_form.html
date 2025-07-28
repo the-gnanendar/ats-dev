@@ -35,19 +35,87 @@
                         <label class="oh-label required-star" for="{{form.recruitment.id_for_label}}" 
                                title="{{ form.recruitment.help_text|safe }}">
                             {{ form.recruitment.label }}
+                            {% if form.verbose_name == "Update Candidate Application" %}
+                                <span class="text-muted">(Read-only)</span>
+                            {% endif %}
                         </label>
                         {{ form.recruitment }}
                         {{ form.recruitment.errors }}
+                        {% if form.recruitment_hidden %}
+                            {{ form.recruitment_hidden }}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label required-star" for="{{form.job_position.id_for_label}}" 
+                               title="{{ form.job_position.help_text|safe }}">
+                            {{ form.job_position.label }}
+                            {% if form.verbose_name == "Update Candidate Application" %}
+                                <span class="text-muted">(Read-only)</span>
+                            {% endif %}
+                        </label>
+                        {{ form.job_position }}
+                        {{ form.job_position.errors }}
+                        {% if form.job_position_hidden %}
+                            {{ form.job_position_hidden }}
+                        {% endif %}
                     </div>
                 </div>
             </div>
             
             <div class="w-100 d-flex align-items-center justify-content-end">
                 <button type="submit" class="oh-btn oh-btn--secondary oh-btn--w-100-resp">
-                    {% trans "Create Applications" %}
+                    {% if form.verbose_name == "Update Candidate Application" %}
+                        {% trans "Update Application" %}
+                    {% else %}
+                        {% trans "Create Applications" %}
+                    {% endif %}
                 </button>
             </div>
         </div>
     </form>
 </div>
+
+{% if form.verbose_name != "Update Candidate Application" %}
+<script>
+function filterJobPositions(recruitmentId) {
+    if (!recruitmentId) {
+        // Clear job position options if no recruitment is selected
+        const jobPositionSelect = document.getElementById('id_job_position');
+        jobPositionSelect.innerHTML = '<option value="">---------</option>';
+        return;
+    }
+    
+    // Make AJAX request to get job positions for the selected recruitment
+    fetch(`/recruitment/get-job-positions/?recruitment_id=${recruitmentId}`)
+        .then(response => response.json())
+        .then(data => {
+            const jobPositionSelect = document.getElementById('id_job_position');
+            jobPositionSelect.innerHTML = '<option value="">---------</option>';
+            
+            data.job_positions.forEach(jobPosition => {
+                const option = document.createElement('option');
+                option.value = jobPosition.id;
+                option.textContent = jobPosition.name;
+                jobPositionSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching job positions:', error);
+        });
+}
+
+// Initialize job position filtering when page loads (only for create form)
+document.addEventListener('DOMContentLoaded', function() {
+    const recruitmentSelect = document.querySelector('select[name="recruitment"]');
+    if (recruitmentSelect && recruitmentSelect.value) {
+        filterJobPositions(recruitmentSelect.value);
+    }
+});
+</script>
+{% endif %}
 {% endblock %} 

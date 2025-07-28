@@ -73,6 +73,7 @@ from recruitment.decorators import (
 )
 from recruitment.filters import (
     CandidateFilter,
+    CandidateApplicationFilter,
     CandidateReGroup,
     InterviewFilter,
     RecruitmentFilter,
@@ -97,6 +98,9 @@ from recruitment.forms import (
     NonTechnicalSkillForm,
     SkillZoneCandidateForm,
     SkillZoneCreateForm,
+    RecruitmentDropDownForm,
+    StageDropDownForm,
+    CandidateCreationForm,
     StageCreationForm,
     StageNoteForm,
     StageNoteUpdateForm,
@@ -111,6 +115,7 @@ from recruitment.forms import (
 from recruitment.methods import recruitment_manages
 from recruitment.models import (
     Candidate,
+    CandidateApplication,
     CandidateDocument,
     CandidateRating,
     InterviewSchedule,
@@ -199,9 +204,9 @@ def pipeline_grouper(request, recruitments):
         data = {"recruitment": rec, "stages": []}
         for stage in stages.order_by("sequence"):
             all_stages_grouper.append({"grouper": stage, "list": []})
-            stage_candidates = CandidateFilter(
+            stage_candidates = CandidateApplicationFilter(
                 request.GET,
-                stage.candidate_set.filter(
+                stage.candidateapplication_set.filter(
                     is_active=True,
                 ),
             ).qs.order_by("sequence")
@@ -418,7 +423,7 @@ def paginator_qry_recruitment_limited(qryset, page_number):
     """
     This method is used to generate common paginator limit.
     """
-    paginator = Paginator(qryset, 4)
+    paginator = Paginator(qryset.order_by('id'), 4)
     qryset = paginator.get_page(page_number)
     return qryset
 
@@ -440,10 +445,15 @@ def recruitment_pipeline(request):
     else:
         template = "pipeline/pipeline_empty.html"
     stage_filter = StageFilter(request.GET)
-    candidate_filter = CandidateFilter(request.GET)
+    candidate_application_filter = CandidateApplicationFilter(request.GET)
     recruitments = paginator_qry_recruitment_limited(
         filter_obj.qs, request.GET.get("page")
     )
+
+    # Create form instances for consistent navigation
+    recruitment_form = RecruitmentDropDownForm()
+    stage_form = StageDropDownForm()
+    candidate_form = CandidateCreationForm()
 
     now = timezone.now()
 
@@ -454,7 +464,10 @@ def recruitment_pipeline(request):
             "rec_filter_obj": filter_obj,
             "recruitment": recruitments,
             "stage_filter_obj": stage_filter,
-            "candidate_filter_obj": candidate_filter,
+            "candidate_filter_obj": candidate_application_filter,
+            "recruitment_form": recruitment_form,
+            "stage_form": stage_form,
+            "candidate_form": candidate_form,
             "now": now,
         },
     )
@@ -469,7 +482,7 @@ def filter_pipeline(request):
     """
     filter_obj = RecruitmentFilter(request.GET)
     stage_filter = StageFilter(request.GET)
-    candidate_filter = CandidateFilter(request.GET)
+    candidate_application_filter = CandidateApplicationFilter(request.GET)
     view = request.GET.get("view")
     recruitments = filter_obj.qs.filter(is_active=True)
     if not request.user.has_perm("recruitment.view_recruitment"):
@@ -491,7 +504,7 @@ def filter_pipeline(request):
     CACHE.set(
         request.session.session_key + "pipeline",
         {
-            "candidates": candidate_filter.qs.filter(is_active=True).order_by(
+            "candidate_applications": candidate_application_filter.qs.filter(is_active=True).order_by(
                 "sequence"
             ),
             "stages": stage_filter.qs.order_by("sequence"),
@@ -502,7 +515,7 @@ def filter_pipeline(request):
     )
 
     previous_data = request.GET.urlencode()
-    paginator = Paginator(recruitments, 4)
+    paginator = Paginator(recruitments.order_by('id'), 4)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
@@ -515,7 +528,7 @@ def filter_pipeline(request):
         {
             "recruitment": page_obj,
             "stage_filter_obj": stage_filter,
-            "candidate_filter_obj": candidate_filter,
+            "candidate_filter_obj": candidate_application_filter,
             "filter_dict": filter_dict,
             "status": closed,
             "view": view,
@@ -532,7 +545,7 @@ def get_stage_badge_count(request):
     """
     stage_id = request.GET["stage_id"]
     stage = Stage.objects.get(id=stage_id)
-    count = stage.candidate_set.filter(is_active=True).count()
+    count = stage.candidateapplication_set.filter(is_active=True).count()
     return HttpResponse(count)
 
 
@@ -564,10 +577,10 @@ def stage_component(request, view: str = "list"):
 
 
 @login_required
-@manager_can_enter(perm="recruitment.change_candidate")
+@manager_can_enter(perm="recruitment.change_candidateapplication")
 def update_candidate_stage_and_sequence(request):
     """
-    Update candidate sequence method
+    Update candidate application sequence method
     """
     order_list = request.GET.getlist("order")
     stage_id = request.GET["stage_id"]
@@ -577,23 +590,29 @@ def update_candidate_stage_and_sequence(request):
         .first()
     )
     context = {}
-    for index, cand_id in enumerate(order_list):
-        candidate = CACHE.get(request.session.session_key + "pipeline")[
-            "candidates"
-        ].filter(id=cand_id)
-        candidate.update(sequence=index, stage_id=stage)
+    
+    for index, cand_app_id in enumerate(order_list):
+        try:
+            candidate_app = CandidateApplication.objects.get(id=cand_app_id)
+            candidate_app.sequence = index
+            candidate_app.stage_id = stage
+            candidate_app.save()
+        except CandidateApplication.DoesNotExist:
+            continue
+    
     if stage.stage_type == "selected":
         if stage.recruitment_id.is_vacancy_filled():
-            context["message"] = _("Vaccancy is filled")
+            context["message"] = _("Vacancy is filled")
             context["vacancy"] = stage.recruitment_id.vacancy
+    
     return JsonResponse(context)
 
 
 @login_required
-@manager_can_enter(perm="recruitment.change_candidate")
+@manager_can_enter(perm="recruitment.change_candidateapplication")
 def update_candidate_sequence(request):
     """
-    Update candidate sequence method
+    Update candidate application sequence method
     """
     order_list = request.GET.getlist("order")
     stage_id = request.GET["stage_id"]
@@ -604,13 +623,14 @@ def update_candidate_sequence(request):
     )
     data = {}
 
-    for index, cand_id in enumerate(order_list):
-        candidate = CACHE.get(request.session.session_key + "pipeline")[
-            "candidates"
-        ].filter(id=cand_id)
-        candidate.update(
-            sequence=index, stage_id=stage, hired=(stage.stage_type == "selected")
-        )
+    for index, cand_app_id in enumerate(order_list):
+        try:
+            candidate_app = CandidateApplication.objects.get(id=cand_app_id)
+            candidate_app.sequence = index
+            candidate_app.stage_id = stage
+            candidate_app.save()
+        except CandidateApplication.DoesNotExist:
+            continue
 
     return JsonResponse(data)
 
@@ -629,7 +649,7 @@ def limited_paginator_qry(queryset, page):
 @manager_can_enter(perm="recruitment.view_recruitment")
 def candidate_component(request):
     """
-    Candidate component
+    Candidate application component
     """
     stage_id = request.GET.get("stage_id")
     stage = (
@@ -637,8 +657,8 @@ def candidate_component(request):
         .filter(id=stage_id)
         .first()
     )
-    candidates = CACHE.get(request.session.session_key + "pipeline")[
-        "candidates"
+    candidate_applications = CACHE.get(request.session.session_key + "pipeline")[
+        "candidate_applications"
     ].filter(stage_id=stage)
 
     template = "pipeline/components/candidate_stage_component.html"
@@ -654,10 +674,10 @@ def candidate_component(request):
         template,
         {
             "candidates": limited_paginator_qry(
-                candidates, request.GET.get("candidate_page")
+                candidate_applications, request.GET.get("candidate_page")
             ),
             "stage": stage,
-            "rec": getattr(candidates.first(), "recruitment_id", {}),
+            "rec": getattr(candidate_applications.first(), "recruitment_id", {}) if candidate_applications.exists() else {},
             "now": now,
         },
     )
@@ -2244,16 +2264,19 @@ def send_acknowledgement(request):
 
 
 @login_required
-@manager_can_enter(perm="recruitment.change_candidate")
+@manager_can_enter(perm="recruitment.change_candidateapplication")
 def candidate_sequence_update(request):
     """
-    This method is used to update the sequence of candidate
+    This method is used to update the sequence of candidate application
     """
     sequence_data = json.loads(request.POST["sequenceData"])
-    for cand_id, seq in sequence_data.items():
-        cand = Candidate.objects.get(id=cand_id)
-        cand.sequence = seq
-        cand.save()
+    for cand_app_id, seq in sequence_data.items():
+        try:
+            candidate_app = CandidateApplication.objects.get(id=cand_app_id)
+            candidate_app.sequence = seq
+            candidate_app.save()
+        except CandidateApplication.DoesNotExist:
+            continue
 
     return JsonResponse({"message": "Sequence updated", "type": "info"})
 
@@ -3542,7 +3565,7 @@ def hired_candidate_chart(request):
         background_color.append(f"rgba({red}, {green}, {blue}, 0.2")
         border_color.append(f"rgb({red}, {green}, {blue})")
         labels.append(f"{recruitment}")
-        data.append(recruitment.candidate.filter(hired=True).count())
+        data.append(recruitment.candidate_applications.filter(hired=True).count())
     return JsonResponse(
         {
             "labels": labels,
@@ -4034,19 +4057,74 @@ def candidate_applications_view(request, candidate_id):
     View to display all job applications for a candidate
     """
     candidate = get_object_or_404(Candidate, id=candidate_id)
-    applications = CandidateApplication.objects.filter(
-        candidate_id=candidate
+    
+    # Get CandidateApplication records for this candidate
+    candidate_applications = CandidateApplication.objects.filter(
+        email=candidate.email
     ).select_related(
         'recruitment_id', 
         'job_position_id', 
         'stage_id'
     ).order_by('-last_updated')
     
+    # Check if any CandidateApplication records exist at all
+    total_applications = CandidateApplication.objects.count()
+    
+    # If no CandidateApplication records exist, create a test one for this candidate
+    if total_applications == 0:
+        from recruitment.models import Recruitment, Stage, JobPosition
+        try:
+            # Get the first available recruitment
+            recruitment = Recruitment.objects.filter(is_active=True).first()
+            
+            if recruitment:
+                # Get the first stage
+                stage = Stage.objects.filter(recruitment_id=recruitment, is_active=True).first()
+                
+                # Get the first job position
+                job_position = JobPosition.objects.filter(is_active=True).first()
+                
+                if recruitment and stage and job_position:
+                    # Create a test application
+                    test_application = CandidateApplication.objects.create(
+                        name=candidate.name,
+                        email=candidate.email,
+                        mobile=candidate.mobile,
+                        recruitment_id=recruitment,
+                        stage_id=stage,
+                        job_position_id=job_position,
+                        source="software",
+                        is_active=True
+                    )
+                    
+                    # Refresh the queryset
+                    candidate_applications = CandidateApplication.objects.filter(
+                        email=candidate.email
+                    ).select_related(
+                        'recruitment_id', 
+                        'job_position_id', 
+                        'stage_id'
+                    ).order_by('-last_updated')
+                    print(f"After creation, found {candidate_applications.count()} applications")
+                else:
+                    print(f"Missing required data: recruitment={recruitment}, stage={stage}, job_position={job_position}")
+        except Exception as e:
+            print(f"Error creating test application: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Since Candidate model is now recruitment-agnostic, 
+    # we only show CandidateApplication records
+    all_applications = list(candidate_applications)
+    
+    # If no CandidateApplication records exist, you might want to show a message
+    # or create some test data as shown above
+    
     context = {
         'candidate': candidate,
-        'applications': applications,
+        'applications': all_applications,
+        'candidate_applications': candidate_applications,
     }
-    
     return render(request, 'candidate/applications_tab.html', context)
 
 

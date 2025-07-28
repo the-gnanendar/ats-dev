@@ -414,7 +414,7 @@ class Recruitment(HorillaModel):
         This method is used to get the count of
         hired candidates
         """
-        return self.candidate.filter(hired=True).count()
+        return self.candidate_applications.filter(hired=True).count()
 
     def __str__(self):
         title = (
@@ -469,7 +469,7 @@ class Recruitment(HorillaModel):
             recruitment_id=self, stage_type="selected"
         ).first()
         if selected_stage:
-            selected_candidate = selected_stage.candidate_set.all().exclude(canceled=True)
+            selected_candidate = selected_stage.candidateapplication_set.all().exclude(canceled=True)
             if len(selected_candidate) >= self.vacancy:
                 return True
     
@@ -577,7 +577,7 @@ class Stage(HorillaModel):
         This method is used to get all the active candidate like related objects
         """
         return {
-            "all": Candidate.objects.filter(
+            "all": CandidateApplication.objects.filter(
                 stage_id=self, canceled=False, is_active=True
             )
         }
@@ -848,9 +848,7 @@ class RejectedCandidate(HorillaModel):
         RejectReason, verbose_name="Reject reason", blank=True
     )
     description = models.TextField(max_length=255)
-    objects = HorillaCompanyManager(
-        related_company_field="candidate_id__recruitment_id__company_id"
-    )
+    objects = models.Manager()
     history = HorillaAuditLog(
         related_name="history_set",
         bases=[
@@ -882,9 +880,7 @@ class StageNote(HorillaModel):
         Employee, on_delete=models.CASCADE, null=True, blank=True
     )
     candidate_can_view = models.BooleanField(default=False)
-    objects = HorillaCompanyManager(
-        related_company_field="candidate_id__recruitment_id__company_id"
-    )
+    objects = models.Manager()
 
     def __str__(self) -> str:
         return f"{self.description}"
@@ -1067,9 +1063,7 @@ class SkillZoneCandidate(HorillaModel):
 
     reason = models.CharField(max_length=200, verbose_name=_("Reason"))
     added_on = models.DateField(auto_now_add=True)
-    objects = HorillaCompanyManager(
-        related_company_field="candidate_id__recruitment_id__company_id"
-    )
+    objects = models.Manager()
 
     def clean(self):
         # Check for duplicate entries in the database
@@ -1142,7 +1136,7 @@ class InterviewSchedule(HorillaModel):
     completed = models.BooleanField(
         default=False, verbose_name=_("Is Interview Completed")
     )
-    objects = HorillaCompanyManager("candidate_id__recruitment_id__company_id")
+    objects = models.Manager()
 
     def __str__(self) -> str:
         return f"{self.candidate_id} -Interview."
@@ -1435,10 +1429,8 @@ class CandidateApplication(HorillaModel):
         """
         Is offer rejected checking method
         """
-        first = RejectedCandidate.objects.filter(candidate_id=self).first()
-        if first:
-            return first.reject_reason_id.count() > 0
-        return first
+        # Check if the offer letter status is 'rejected'
+        return self.offer_letter_status == "rejected"
 
     def get_full_name(self):
         """
@@ -2077,6 +2069,13 @@ class CandidateSkill(HorillaModel):
         null=True,
         blank=True,
         verbose_name=_("Years of Experience")
+    )
+    
+    # Relevant Years of Experience
+    relevant_years_of_experience = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_("Relevant Years of Experience")
     )
     
     # Additional Information

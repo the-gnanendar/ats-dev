@@ -164,3 +164,97 @@ def to_json(value):
         {"id": val.id, "stage": val.stage, "type": val.stage_type} for val in value
     ]
     return json.dumps(ordered_list)
+
+
+@register.filter(name="skills_by_proficiency")
+def skills_by_proficiency(skills, proficiency_level):
+    """
+    Filter skills by proficiency level
+    """
+    return skills.filter(proficiency_level=proficiency_level).count()
+
+
+@register.filter(name="skills_by_highlighted")
+def skills_by_highlighted(skills):
+    """
+    Count highlighted skills
+    """
+    return skills.filter(is_highlighted=True).count()
+
+
+@register.filter(name="get_process_status")
+def get_process_status(application):
+    """
+    Get the process status based on stage type and application status
+    """
+    if application.canceled:
+        return "cancelled"
+    elif application.converted:
+        return "converted"
+    elif application.hired:
+        return "hired"
+    elif application.stage_id:
+        stage_type = application.stage_id.stage_type
+        if stage_type == "selected":
+            return "selected"
+        elif stage_type == "rejected":
+            return "rejected"
+        elif stage_type in ["l1_interview", "l2_interview", "l3_interview", "interview"]:
+            return "interviewing"
+        elif stage_type == "test":
+            return "testing"
+        elif stage_type == "shortlisted":
+            return "shortlisted"
+        elif stage_type == "sourced":
+            return "processing"
+        elif stage_type == "on-hold":
+            return "on-hold"
+        else:
+            return "processing"
+    else:
+        return "processing"
+
+
+@register.filter(name="get_status_badge_class")
+def get_status_badge_class(status):
+    """
+    Get the appropriate badge class for the status
+    """
+    status_classes = {
+        "processing": "oh-badge--info",
+        "shortlisted": "oh-badge--primary", 
+        "interviewing": "oh-badge--warning",
+        "testing": "oh-badge--warning",
+        "selected": "oh-badge--success",
+        "rejected": "oh-badge--danger",
+        "hired": "oh-badge--success",
+        "converted": "oh-badge--primary",
+        "cancelled": "oh-badge--danger",
+        "on-hold": "oh-badge--secondary",
+    }
+    return status_classes.get(status, "oh-badge--secondary")
+
+
+@register.filter(name="count_applications_by_status")
+def count_applications_by_status(applications, status_type):
+    """
+    Count applications by status type
+    """
+    count = 0
+    for application in applications:
+        status = get_process_status(application)
+        if status == status_type:
+            count += 1
+    return count
+
+
+@register.filter(name="count_applications_by_stage_type")
+def count_applications_by_stage_type(applications, stage_type):
+    """
+    Count applications by stage type
+    """
+    count = 0
+    for application in applications:
+        if application.stage_id and application.stage_id.stage_type == stage_type:
+            count += 1
+    return count

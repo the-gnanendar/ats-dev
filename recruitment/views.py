@@ -37,7 +37,7 @@ from recruitment.filters import CandidateFilter, RecruitmentFilter, StageFilter
 from recruitment.forms import (
     ApplicationForm,
     CandidateCreationForm,
-    CandidateDropDownForm,
+    CandidateCreationForm,
     RecruitmentCreationForm,
     RecruitmentDropDownForm,
     StageCreationForm,
@@ -333,7 +333,7 @@ def recruitment_pipeline(request):
         template = "pipeline/pipeline_card.html"
     recruitment_form = RecruitmentDropDownForm()
     stage_form = StageDropDownForm()
-    candidate_form = CandidateDropDownForm()
+    candidate_form = CandidateCreationForm()
     recruitment_obj = Recruitment.objects.filter(is_active=True, closed=False)
     if request.method == "POST":
         if request.POST.get(
@@ -368,10 +368,10 @@ def recruitment_pipeline(request):
             if request.user.has_perm("add_candidate") or is_stagemanager(
                 request,
             ):
-                candidate_form = CandidateDropDownForm(request.POST, request.FILES)
+                candidate_form = CandidateCreationForm(request.POST, request.FILES)
                 if candidate_form.is_valid():
                     candidate_obj = candidate_form.save()
-                    candidate_form = CandidateDropDownForm()
+                    candidate_form = CandidateCreationForm()
                     with contextlib.suppress(Exception):
                         managers = candidate_obj.stage_id.stage_managers.select_related(
                             "employee_user_id"
@@ -1323,7 +1323,7 @@ def stage_type_candidate_count(rec, stage_type):
     candidates_count = 0
     for stage_obj in rec.stage_set.filter(stage_type=stage_type):
         candidates_count = candidates_count + len(
-            stage_obj.candidate_set.filter(is_active=True)
+            stage_obj.candidateapplication_set.filter(is_active=True)
         )
     return candidates_count
 

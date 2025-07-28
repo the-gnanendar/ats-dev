@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load static %}
+{% load recruitmentfilters %}
 
 <div class="oh-card">
     <div class="oh-card__header">
@@ -59,19 +60,19 @@
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
-                            <h4 class="text-success">{{ candidate.skills.filter.proficiency_level='expert'|length }}</h4>
+                            <h4 class="text-success">{{ candidate.skills.all|skills_by_proficiency:'expert' }}</h4>
                             <small class="text-muted">{% trans "Expert Level" %}</small>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
-                            <h4 class="text-info">{{ candidate.skills.filter.proficiency_level='advanced'|length }}</h4>
+                            <h4 class="text-info">{{ candidate.skills.all|skills_by_proficiency:'advanced' }}</h4>
                             <small class="text-muted">{% trans "Advanced Level" %}</small>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
-                            <h4 class="text-warning">{{ candidate.skills.filter.is_highlighted=True|length }}</h4>
+                            <h4 class="text-warning">{{ candidate.skills.all|skills_by_highlighted }}</h4>
                             <small class="text-muted">{% trans "Highlighted" %}</small>
                         </div>
                     </div>

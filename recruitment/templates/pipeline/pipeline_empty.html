@@ -2,60 +2,88 @@
 {% load static %}
 {% block content %}
 {% load i18n %}
-<section class="oh-wrapper oh-main__topbar" x-data="{searchShow: false}">
-    {% if perms.recruitment.add_recruitment %}
-        <div class="oh-main__titlebar oh-main__titlebar--left">
-            <div class="oh-main__titlebar-title fw-bold mb-0 text-dark" style="cursor:pointer;">{% trans "Recruitments" %}
-            </div>
-        </div>
-    {% endif %}
+{% load recruitmentfilters %}
 
-    <div class="oh-switch" style="width: 30px; margin-left:1200px;">
-        <input type="checkbox" name="is_closed" data-widget="style-widget" class="style-widget oh-switch__checkbox"
-            {% if request.GET.closed %} checked title="{% trans 'Switch to Ongoing Recruitments' %}" {% else %}
-            title="{% trans 'Switch to Closed Recruitments' %}" {% endif %} id="is_closed">
-    </div>
+<style>
+  .oh-tabs__tab--active {
+    border-right: solid 1px #dedede !important;
+}
+  .avatars {
+    display: flex;
+    padding: 8px 10px 8px 10px;
+  }
 
-    <div class="oh-main__titlebar oh-main__titlebar--right">
-        <div class="oh-main__titlebar-button-container">
-            <div class="oh-dropdown" x-data="{open: false}">
-                <div class="oh-dropdown__menu oh-dropdown__menu--right oh-dropdown__filter p-4" x-show="open"
-                    @click.outside="open = false" style="display: none;" @click.>
-                    <div class="mb-3 mt-3">
-                        <label for="job_pos_id" class="oh-label">{% trans "Job position" %}</label>
-                        <select class="" name="job_pos_id" id="job_pos_id">
-                            <option value="">------------------</option>
-                            {% for job_position in job_positions %}
-                                <option value="{{job_position}}">{{job_position}}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+  .avatars__item {
+    background-color: #596376;
+    border: 2px solid white;
+    border-radius: 100%;
+    color: #ffffff;
+    display: block;
+    font-family: sans-serif;
+    font-size: 12px;
+    font-weight: 100;
+    height: 26px;
+    width: 26px;
+    line-height: 17px;
+    text-align: center;
+    transition: margin 0.1s ease-in-out;
+    overflow: hidden;
+    margin-left: -10px;
+  }
 
-                    <div class="oh-tabs__action-bar mt-2" id="filter_item" x-on:click="open = false">
-                        <button class="oh-btn oh-btn--small oh-btn--secondary oh-tabs__action-new-table w-100">
-                            <ion-icon class="me-1 md hydrated" name="add-outline" role="img"
-                                aria-label="add outline"></ion-icon>
-                            {% trans "Filter" %}
-                        </button>
-                    </div>
-                </div>
-            </div>
+  .avatars__item:first-child {
+    z-index: 5;
+  }
 
-            {% if perms.recruitment.add_recruitment %}
-                <button class="oh-btn oh-btn--secondary" data-toggle="oh-modal-toggle" data-target="#objectCreateModal"
-                    hx-target="#objectCreateModalTarget" hx-get="{% url 'recruitment-create' %}">
-                    <ion-icon class="me-1" name="add-outline"></ion-icon>
-                    {% trans 'Recruitment' %}
-                </button>
-            {% endif %}
-            <div class="oh-main__titlebar-button-container">
-                {% if perms.recruitment.add_recruitment %}
-                    {% include 'pipeline/form/recruitment_drop_down_form.html' %}
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</section>
+  .avatars__item:nth-child(2) {
+    z-index: 4;
+  }
+
+  .avatars__item:nth-child(3) {
+    z-index: 3;
+  }
+
+  .avatars__item:nth-child(4) {
+    z-index: 2;
+  }
+
+  .avatars__item:nth-child(5) {
+    z-index: 1;
+  }
+
+  .avatars__item:last-child {
+    z-index: 0;
+  }
+
+  .avatars__item img {
+    width: 100%;
+  }
+
+  .avatars:hover .avatars__item {
+    margin-right: 10px;
+  }
+  .select2-container .select2-selection.select2-selection--multiple{
+    padding: 5px !important;
+    max-height: 70px !important;
+    overflow: hidden;
+    overflow-y: scroll;
+  }
+  .search-highlight{
+    background-color: rgba(255, 68, 0, 0.076);
+  }
+  #enlargeImageContainer {
+    position: absolute;
+    left: -300px;
+    top: 100px;
+    height: 200px;
+    width: 200px;
+  }
+</style>
+
+<div id="messages" class="oh-alert-container">
+</div>
+
+{% include 'pipeline/nav.html' %}
 
 <div class="oh-wrapper">
     <div class="oh-empty">
@@ -71,6 +99,7 @@
     </div>
 </div>
 
+{% include 'pipeline/footer_components.html' %}
 
 <script>
     $(document).ready(function () {

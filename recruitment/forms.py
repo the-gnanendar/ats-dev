@@ -596,7 +596,6 @@ class ApplicationForm(RegistrationForm):
         self.fields["resume"].required = False
 
         self.fields["recruitment_id"].widget.attrs = {"data-widget": "ajax-widget"}
-        self.fields["job_position_id"].widget.attrs = {"data-widget": "ajax-widget"}
         if request and request.user.has_perm("recruitment.add_candidate"):
             self.fields["profile"].required = False
 
@@ -655,10 +654,7 @@ class RecruitmentDropDownForm(DropDownForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["job_position_id"].widget.attrs.update({"id": uuid.uuid4})
         self.fields["recruitment_managers"].widget.attrs.update({"id": uuid.uuid4})
-        field = self.fields["is_active"]
-        field.widget = field.hidden_widget()
 
 
 class AddCandidateForm(ModelForm):
@@ -1450,13 +1446,14 @@ class CandidateApplicationCreationForm(BaseModelForm):
 
 class SimpleCandidateApplicationForm(forms.Form):
     """
-    Simplified form for creating candidate applications with only two fields:
+    Simplified form for creating candidate applications with three fields:
     1. Candidate multi-select (from existing candidates)
     2. Recruitment single-select
+    3. Job Position single-select (filtered by recruitment)
     """
     verbose_name = "Create Candidate Application"
     
-    candidates = forms.ModelMultipleChoiceField(
+    candidates = HorillaMultiSelectField(
         queryset=Candidate.objects.filter(is_active=True),
         widget=HorillaMultiSelectWidget(
             filter_route_name="candidate-filter",
@@ -1465,18 +1462,28 @@ class SimpleCandidateApplicationForm(forms.Form):
             filter_context_name="candidate_filter",
         ),
         label=_("Select Candidates"),
-        help_text=_("Choose one or more candidates to create applications for")
+        help_text=_("Choose one or more candidates to create applications for"),
     )
     
     recruitment = forms.ModelChoiceField(
         queryset=Recruitment.objects.filter(is_active=True, closed=False),
-        empty_label=_("Select a recruitment"),
         label=_("Recruitment"),
-        help_text=_("Choose the recruitment to apply candidates to")
+        help_text=_("Select the recruitment to create applications for"),
+        widget=forms.Select(attrs={"class": "oh-select oh-select-2 select2-hidden-accessible"}),
+    )
+    
+    job_position = forms.ModelChoiceField(
+        queryset=JobPosition.objects.all(),
+        label=_("Job Position"),
+        help_text=_("Select the specific job position for this application"),
+        widget=forms.Select(attrs={"class": "oh-select oh-select-2 select2-hidden-accessible"}),
+        required=True,
     )
     
     def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop('instance', None)
         super().__init__(*args, **kwargs)
+        
         # Set up the recruitment field to show only active recruitments
         self.fields['recruitment'].queryset = Recruitment.objects.filter(
             is_active=True, 
@@ -1488,62 +1495,166 @@ class SimpleCandidateApplicationForm(forms.Form):
             is_active=True
         ).order_by('name')
         
+        # Set up the job position field - will be filtered by JavaScript
+        self.fields['job_position'].queryset = JobPosition.objects.all().order_by('job_position')
+        
         # Apply consistent styling
         for field_name, field in self.fields.items():
             if isinstance(field.widget, (forms.Select,)):
                 field.widget.attrs.update({
-                    "class": "oh-select oh-select-2 select2-hidden-accessible",
+                    "class": "oh-select oh-select-2 select2-hidden-accessible"
                 })
-            elif isinstance(field.widget, (forms.TextInput, forms.EmailInput, forms.NumberInput)):
-                field.widget.attrs.update({
-                    "class": "oh-input w-100",
-                    "placeholder": field.label,
-                })
+        
+        # Add JavaScript for dynamic job position filtering
+        self.fields['recruitment'].widget.attrs.update({
+            "onchange": "filterJobPositions(this.value)",
+            "data-job-positions-url": "/recruitment/get-job-positions/"
+        })
+        
+        # Add JavaScript function to filter job positions
+        self.fields['job_position'].widget.attrs.update({
+            "id": "id_job_position"
+        })
+        
+        # Set initial values if instance is provided
+        if self.instance:
+            # Find the candidate based on email match and set as initial value
+            if self.instance.email:
+                try:
+                    candidate = Candidate.objects.get(email=self.instance.email)
+                    # Set the initial value for the candidates field
+                    self.initial['candidates'] = [candidate]
+                except Candidate.DoesNotExist:
+                    pass
+            
+            if self.instance.recruitment_id:
+                self.initial['recruitment'] = self.instance.recruitment_id.id
+                # Also set the field's initial value directly
+                self.fields['recruitment'].initial = self.instance.recruitment_id.id
+            
+            if self.instance.job_position_id:
+                self.initial['job_position'] = self.instance.job_position_id.id
+                # Also set the field's initial value directly
+                self.fields['job_position'].initial = self.instance.job_position_id.id
+                
+                # Ensure the job position is in the queryset for the disabled field
+                if self.instance.job_position_id not in self.fields['job_position'].queryset:
+                    self.fields['job_position'].queryset = JobPosition.objects.filter(
+                        id=self.instance.job_position_id.id
+                    ).union(self.fields['job_position'].queryset)
+                
+                # Set the widget's initial value explicitly
+                self.fields['job_position'].widget.attrs['data-initial-value'] = str(self.instance.job_position_id.id)
+                # Also set the value attribute directly
+                self.fields['job_position'].widget.attrs['value'] = str(self.instance.job_position_id.id)
+            
+            # Add hidden fields to preserve the values when form is submitted
+            self.fields['recruitment_hidden'] = forms.CharField(
+                widget=forms.HiddenInput(),
+                initial=self.instance.recruitment_id.id if self.instance.recruitment_id else None
+            )
+            self.fields['job_position_hidden'] = forms.CharField(
+                widget=forms.HiddenInput(),
+                initial=self.instance.job_position_id.id if self.instance.job_position_id else None
+            )
+            
+            # Make recruitment and job_position readonly for update form
+            self.fields['recruitment'].widget.attrs.update({
+                "disabled": "disabled",
+                "readonly": "readonly"
+            })
+            self.fields['job_position'].widget.attrs.update({
+                "disabled": "disabled", 
+                "readonly": "readonly"
+            })
+    
+    def clean(self):
+        """
+        Custom validation for the form
+        """
+        cleaned_data = super().clean()
+        candidates = cleaned_data.get('candidates')
+        recruitment = cleaned_data.get('recruitment')
+        job_position = cleaned_data.get('job_position')
+        
+        # For update form, use hidden field values if main fields are disabled
+        if self.instance:
+            if not recruitment and 'recruitment_hidden' in cleaned_data:
+                recruitment_id = cleaned_data.get('recruitment_hidden')
+                if recruitment_id:
+                    try:
+                        recruitment = Recruitment.objects.get(id=recruitment_id)
+                        cleaned_data['recruitment'] = recruitment
+                    except Recruitment.DoesNotExist:
+                        pass
+            
+            if not job_position and 'job_position_hidden' in cleaned_data:
+                job_position_id = cleaned_data.get('job_position_hidden')
+                if job_position_id:
+                    try:
+                        job_position = JobPosition.objects.get(id=job_position_id)
+                        cleaned_data['job_position'] = job_position
+                    except JobPosition.DoesNotExist:
+                        pass
+        
+        # Handle HorillaMultiSelectField validation
+        if isinstance(self.fields.get('candidates'), HorillaMultiSelectField):
+            ids = self.data.getlist('candidates')
+            if ids:
+                self.errors.pop('candidates', None)
+                # Re-validate the field with the IDs
+                try:
+                    candidates = self.fields['candidates'].to_python(ids)
+                    cleaned_data['candidates'] = candidates
+                except forms.ValidationError as e:
+                    self.add_error('candidates', e)
+        
+        if not candidates:
+            raise forms.ValidationError(_("Please select at least one candidate."))
+        
+        if not recruitment:
+            raise forms.ValidationError(_("Please select a recruitment."))
+        
+        if not job_position:
+            raise forms.ValidationError(_("Please select a job position."))
+        
+        return cleaned_data
     
     def save(self):
         """
-        Create CandidateApplication instances for each selected candidate
+        Update the CandidateApplication instance
         """
         candidates = self.cleaned_data['candidates']
         recruitment = self.cleaned_data['recruitment']
+        job_position = self.cleaned_data['job_position']
         
-        created_applications = []
-        
-        for candidate in candidates:
-            # Check if application already exists for this candidate and recruitment
-            existing_app = CandidateApplication.objects.filter(
-                candidate_id=candidate,
-                recruitment_id=recruitment
-            ).first()
+        if self.instance and candidates:
+            # For update, we only use the first candidate (since it's a single application)
+            candidate = candidates[0]
             
-            if not existing_app:
-                # Get the first stage of the recruitment
-                first_stage = recruitment.stage_set.filter(is_active=True).order_by('sequence').first()
-                
-                # Create the application
-                application = CandidateApplication.objects.create(
-                    candidate_id=candidate,
-                    recruitment_id=recruitment,
-                    stage_id=first_stage,
-                    name=candidate.name,
-                    email=candidate.email,
-                    mobile=candidate.mobile,
-                    profile=candidate.profile,
-                    resume=candidate.resume,
-                    portfolio=candidate.portfolio,
-                    address=candidate.address,
-                    country=candidate.country,
-                    state=candidate.state,
-                    city=candidate.city,
-                    zip=candidate.zip,
-                    gender=candidate.gender,
-                    dob=candidate.dob,
-                    source="software",
-                    is_active=True
-                )
-                created_applications.append(application)
+            # Update the existing application
+            self.instance.recruitment_id = recruitment
+            self.instance.job_position_id = job_position
+            
+            # Update candidate data from the selected candidate
+            self.instance.name = candidate.name
+            self.instance.email = candidate.email
+            self.instance.mobile = candidate.mobile
+            self.instance.profile = candidate.profile
+            self.instance.resume = candidate.resume
+            self.instance.portfolio = candidate.portfolio
+            self.instance.address = candidate.address
+            self.instance.country = candidate.country
+            self.instance.state = candidate.state
+            self.instance.city = candidate.city
+            self.instance.zip = candidate.zip
+            self.instance.gender = candidate.gender
+            self.instance.dob = candidate.dob
+            
+            self.instance.save()
+            return [self.instance]
         
-        return created_applications
+        return []
 
 
 class CandidateApplicationDropDownForm(BaseModelForm):
@@ -1739,7 +1850,7 @@ class ToSkillZoneApplicationForm(forms.Form):
     """
     Form to add CandidateApplication to skill zones
     """
-    skill_zone_ids = forms.ModelMultipleChoiceField(
+    skill_zone_ids = HorillaMultiSelectField(
         queryset=SkillZone.objects.filter(is_active=True),
         widget=HorillaMultiSelectWidget(
             filter_route_name="skill-zone-filter",
@@ -1935,26 +2046,16 @@ class CandidateSkillForm(BaseModelForm):
     """
     verbose_name = _("Candidate Skill")
     
-    # Add relevant years of experience field
-    relevant_years_of_experience = forms.IntegerField(
-        required=False,
-        min_value=0,
-        widget=forms.NumberInput(attrs={
-            'class': 'form-control',
-            'placeholder': _('Relevant years of experience')
-        }),
-        label=_("Relevant Years of Experience")
-    )
-    
     class Meta:
         model = CandidateSkill
         fields = [
-            'skill_name', 'proficiency_level', 'years_of_experience'
+            'skill_name', 'proficiency_level', 'years_of_experience', 'relevant_years_of_experience'
         ]
         widgets = {
             'skill_name': forms.TextInput(),
             'proficiency_level': forms.Select(),
             'years_of_experience': forms.NumberInput(attrs={'min': '0'}),
+            'relevant_years_of_experience': forms.NumberInput(attrs={'min': '0'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -1968,13 +2069,6 @@ class CandidateSkillForm(BaseModelForm):
             ("advanced", _("Advanced")),
             ("expert", _("Expert")),
         ]
-        
-        # Load relevant years from description if editing
-        if self.instance and self.instance.pk and self.instance.description:
-            import re
-            match = re.search(r'Relevant years: (\d+)', self.instance.description)
-            if match:
-                self.fields['relevant_years_of_experience'].initial = int(match.group(1))
     
     def as_p(self, *args, **kwargs):
         """
@@ -1986,18 +2080,9 @@ class CandidateSkillForm(BaseModelForm):
     
     def save(self, commit=True):
         """
-        Save the form and handle the custom relevant_years_of_experience field
+        Save the form
         """
-        instance = super().save(commit=False)
-        
-        # Store relevant years of experience in the description field
-        relevant_years = self.cleaned_data.get('relevant_years_of_experience')
-        if relevant_years is not None:
-            instance.description = f"Relevant years: {relevant_years}"
-        
-        if commit:
-            instance.save()
-        return instance
+        return super().save(commit)
 
 
 class CandidateSkillRatingForm(BaseModelForm):
@@ -2121,7 +2206,7 @@ CandidateSkillFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
     fields=[
-        'skill_name', 'proficiency_level', 'years_of_experience'
+        'skill_name', 'proficiency_level', 'years_of_experience', 'relevant_years_of_experience'
     ]
 )
 
@@ -2170,3 +2255,164 @@ class LinkedInAccountForm(BaseModelForm):
         context = {"form": self}
         table_html = render_to_string("common_form.html", context)
         return table_html
+
+
+class SimpleCandidateApplicationUpdateForm(forms.Form):
+    """
+    Simplified form for updating candidate applications with three fields:
+    1. Candidate multi-select (from existing candidates) - same as create form
+    2. Recruitment text input (readonly in update)
+    3. Job Position text input (readonly in update)
+    """
+    verbose_name = "Update Candidate Application"
+    
+    candidates = HorillaMultiSelectField(
+        queryset=Candidate.objects.filter(is_active=True),
+        widget=HorillaMultiSelectWidget(
+            filter_route_name="candidate-filter",
+            filter_class=None,
+            filter_instance_contex_name="f",
+            filter_context_name="candidate_filter",
+        ),
+        label=_("Select Candidates"),
+        help_text=_("Choose the candidate for this application"),
+    )
+    
+    recruitment = forms.CharField(
+        label=_("Recruitment"),
+        help_text=_("Recruitment for this application"),
+        widget=forms.TextInput(attrs={"class": "oh-input w-100", "readonly": "readonly"}),
+        required=False,
+    )
+    
+    job_position = forms.CharField(
+        label=_("Job Position"),
+        help_text=_("Job position for this application"),
+        widget=forms.TextInput(attrs={"class": "oh-input w-100", "readonly": "readonly"}),
+        required=False,
+    )
+    
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop('instance', None)
+        super().__init__(*args, **kwargs)
+        
+        # Set up the candidates field to show only active candidates
+        self.fields['candidates'].queryset = Candidate.objects.filter(
+            is_active=True
+        ).order_by('name')
+        
+        # Set initial values if instance is provided
+        if self.instance:
+            # Find the candidate based on email match and set as initial value
+            if self.instance.email:
+                try:
+                    candidate = Candidate.objects.get(email=self.instance.email)
+                    # Set the initial value for the candidates field
+                    self.initial['candidates'] = [candidate]
+                except Candidate.DoesNotExist:
+                    pass
+            
+            # Set recruitment and job position as text values
+            if self.instance.recruitment_id:
+                self.initial['recruitment'] = self.instance.recruitment_id.title
+            
+            if self.instance.job_position_id:
+                self.initial['job_position'] = self.instance.job_position_id.job_position
+            
+            # Add hidden fields to preserve the values when form is submitted
+            self.fields['recruitment_hidden'] = forms.CharField(
+                widget=forms.HiddenInput(),
+                initial=self.instance.recruitment_id.id if self.instance.recruitment_id else None
+            )
+            self.fields['job_position_hidden'] = forms.CharField(
+                widget=forms.HiddenInput(),
+                initial=self.instance.job_position_id.id if self.instance.job_position_id else None
+            )
+    
+    def clean(self):
+        """
+        Custom validation for the form
+        """
+        cleaned_data = super().clean()
+        candidates = cleaned_data.get('candidates')
+        recruitment = cleaned_data.get('recruitment')
+        job_position = cleaned_data.get('job_position')
+        
+        # For update form, use hidden field values
+        if self.instance:
+            if 'recruitment_hidden' in cleaned_data:
+                recruitment_id = cleaned_data.get('recruitment_hidden')
+                if recruitment_id:
+                    try:
+                        recruitment = Recruitment.objects.get(id=recruitment_id)
+                        cleaned_data['recruitment'] = recruitment
+                    except Recruitment.DoesNotExist:
+                        pass
+            
+            if 'job_position_hidden' in cleaned_data:
+                job_position_id = cleaned_data.get('job_position_hidden')
+                if job_position_id:
+                    try:
+                        job_position = JobPosition.objects.get(id=job_position_id)
+                        cleaned_data['job_position'] = job_position
+                    except JobPosition.DoesNotExist:
+                        pass
+        
+        # Handle HorillaMultiSelectField validation
+        if isinstance(self.fields.get('candidates'), HorillaMultiSelectField):
+            ids = self.data.getlist('candidates')
+            if ids:
+                self.errors.pop('candidates', None)
+                # Re-validate the field with the IDs
+                try:
+                    candidates = self.fields['candidates'].to_python(ids)
+                    cleaned_data['candidates'] = candidates
+                except forms.ValidationError as e:
+                    self.add_error('candidates', e)
+        
+        if not candidates:
+            raise forms.ValidationError(_("Please select at least one candidate."))
+        
+        if not recruitment:
+            raise forms.ValidationError(_("Please select a recruitment."))
+        
+        if not job_position:
+            raise forms.ValidationError(_("Please select a job position."))
+        
+        return cleaned_data
+    
+    def save(self):
+        """
+        Update the CandidateApplication instance
+        """
+        candidates = self.cleaned_data['candidates']
+        recruitment = self.cleaned_data['recruitment']
+        job_position = self.cleaned_data['job_position']
+        
+        if self.instance and candidates:
+            # For update, we only use the first candidate (since it's a single application)
+            candidate = candidates[0]
+            
+            # Update the existing application
+            self.instance.recruitment_id = recruitment
+            self.instance.job_position_id = job_position
+            
+            # Update candidate data from the selected candidate
+            self.instance.name = candidate.name
+            self.instance.email = candidate.email
+            self.instance.mobile = candidate.mobile
+            self.instance.profile = candidate.profile
+            self.instance.resume = candidate.resume
+            self.instance.portfolio = candidate.portfolio
+            self.instance.address = candidate.address
+            self.instance.country = candidate.country
+            self.instance.state = candidate.state
+            self.instance.city = candidate.city
+            self.instance.zip = candidate.zip
+            self.instance.gender = candidate.gender
+            self.instance.dob = candidate.dob
+            
+            self.instance.save()
+            return [self.instance]
+        
+        return []

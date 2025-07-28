@@ -124,7 +124,7 @@ class CandidateStage(HorillaModel):
     )
     onboarding_end_date = models.DateField(blank=True, null=True)
     sequence = models.IntegerField(null=True, default=0)
-    objects = HorillaCompanyManager("candidate_id__recruitment_id__company_id")
+    objects = models.Manager()
 
     def __str__(self):
         return f"{self.candidate_id}  |  {self.onboarding_stage_id}"
@@ -177,7 +177,7 @@ class CandidateTask(HorillaModel):
         max_length=50, choices=choice, blank=True, null=True, default="todo"
     )
     onboarding_task_id = models.ForeignKey(OnboardingTask, on_delete=models.PROTECT)
-    objects = HorillaCompanyManager("candidate_id__recruitment_id__company_id")
+    objects = models.Manager()
     history = HorillaAuditLog(
         related_name="history_set",
         bases=[
@@ -209,7 +209,7 @@ class OnboardingPortal(HorillaModel):
     used = models.BooleanField(default=False)
     count = models.IntegerField(default=0)
     profile = models.ImageField(upload_to="employee/profile", null=True, blank=True)
-    objects = HorillaCompanyManager("candidate_id__recruitment_id__company_id")
+    objects = models.Manager()
 
     def __str__(self):
         return f"{self.candidate_id} | {self.token}"

@@ -1521,7 +1521,7 @@ def onboard_candidate_chart(request):
         background_color.append(f"rgba({red}, {green}, {blue}, 0.2")
         border_color.append(f"rgb({red}, {green}, {blue})")
         labels.append(recruitment.title)
-        data.append(recruitment.candidate.filter(start_onboard=True).count())
+        data.append(recruitment.candidate_applications.filter(start_onboard=True).count())
     return JsonResponse(
         {
             "labels": labels,

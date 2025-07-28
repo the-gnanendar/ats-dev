@@ -16,7 +16,7 @@ from base.models import Department, JobPosition
 from employee.models import EmployeeWorkInformation
 from horilla.decorators import login_required
 from recruitment.decorators import manager_can_enter
-from recruitment.models import Candidate, Recruitment, SkillZone, Stage
+from recruitment.models import Candidate, CandidateApplication, Recruitment, SkillZone, Stage
 
 
 def stage_type_candidate_count(rec, stage_type):
@@ -26,7 +26,7 @@ def stage_type_candidate_count(rec, stage_type):
     candidates_count = 0
     for stage_obj in rec.stage_set.filter(stage_type=stage_type):
         candidates_count = candidates_count + len(
-            stage_obj.candidate_set.filter(is_active=True)
+            stage_obj.candidateapplication_set.filter(is_active=True)
         )
     return candidates_count
 
@@ -37,7 +37,7 @@ def dashboard(request):
     """
     This method is used to render dashboard for recruitment module
     """
-    candidates = Candidate.objects.all()
+    candidates = CandidateApplication.objects.all()
     stage_chart_count = 0
     vacancy_chart = Recruitment.objects.filter(closed=False, is_event_based=False)
     if vacancy_chart.exists():
@@ -62,32 +62,32 @@ def dashboard(request):
 
     initial = []
     for job in jobs:
-        ini = Candidate.objects.filter(
+        ini = CandidateApplication.objects.filter(
             job_position_id=job, stage_id__stage_type="sourced"
         )
         initial.append(ini.count())
 
     test = []
     for job in jobs:
-        tes = Candidate.objects.filter(job_position_id=job, stage_id__stage_type="test")
+        tes = CandidateApplication.objects.filter(job_position_id=job, stage_id__stage_type="test")
         test.append(tes.count())
 
     interview = []
     for job in jobs:
-        inter = Candidate.objects.filter(
+        inter = CandidateApplication.objects.filter(
             job_position_id=job, stage_id__stage_type="interview"
         )
         interview.append(inter.count())
 
     hired = []
     for job in jobs:
-        hire = Candidate.objects.filter(
+        hire = CandidateApplication.objects.filter(
             job_position_id=job, stage_id__stage_type="selected"
         )
         hired.append(hire.count())
     cancelled = []
     for job in jobs:
-        cancelled_candidates = Candidate.objects.filter(
+        cancelled_candidates = CandidateApplication.objects.filter(
             job_position_id=job, stage_id__stage_type="cancelled"
         )
         cancelled.append(cancelled_candidates.count())
@@ -105,7 +105,7 @@ def dashboard(request):
         if stage_chart_count >= 1:
             stage_chart_count = 1
 
-    accepted = Candidate.objects.filter(offer_letter_status="accepted")
+    accepted = CandidateApplication.objects.filter(offer_letter_status="accepted")
     accepted_count = accepted.count()
 
     recruitment_manager_mapping = {}
@@ -155,7 +155,7 @@ def dashboard(request):
             "conversion_ratio": conversion_ratio,
             "acceptance_ratio": acceptance_ratio,
             "onboard_candidates": hired_candidates.filter(
-                onboarding_stage__isnull=False
+                start_onboard=True
             ),
             "job_data": job_data,
             "total_vacancy": total_vacancy,
@@ -165,7 +165,7 @@ def dashboard(request):
             "dep_vacancy": dep_vacancy,
             "stage_chart_count": stage_chart_count,
             "onboarding_count": hired_candidates.filter(
-                onboarding_stage__isnull=False
+                start_onboard=True
             ).count(),
             "total_candidates": total_candidates,
             "skill_zone": skill_zone,
@@ -184,7 +184,7 @@ def dashboard_pipeline(request):
     labels = [type[1] for type in Stage.stage_types]
     for rec in recruitment_obj:
         data = [stage_type_candidate_count(rec, type[0]) for type in Stage.stage_types]
-        if rec.candidate.all():
+        if rec.candidate_applications.all():
             data_set.append(
                 {
                     "label": (
@@ -307,17 +307,17 @@ def candidate_status(_request):
     This method is used to generate a CAndidate status chart for the dashboard
     """
 
-    not_sent_candidates = Candidate.objects.filter(
+    not_sent_candidates = CandidateApplication.objects.filter(
         offer_letter_status="not_sent"
     ).count()
-    sent_candidates = Candidate.objects.filter(offer_letter_status="sent").count()
-    accepted_candidates = Candidate.objects.filter(
+    sent_candidates = CandidateApplication.objects.filter(offer_letter_status="sent").count()
+    accepted_candidates = CandidateApplication.objects.filter(
         offer_letter_status="accepted"
     ).count()
-    rejected_candidates = Candidate.objects.filter(
+    rejected_candidates = CandidateApplication.objects.filter(
         offer_letter_status="rejected"
     ).count()
-    joined_candidates = Candidate.objects.filter(offer_letter_status="joined").count()
+    joined_candidates = CandidateApplication.objects.filter(offer_letter_status="joined").count()
 
     data_set = []
     labels = ["Not Sent", "Sent", "Accepted", "Rejected", "Joined"]

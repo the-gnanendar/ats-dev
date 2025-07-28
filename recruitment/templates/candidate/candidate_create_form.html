@@ -72,12 +72,14 @@
               {% if work_experience_formset %}
                 {% for form in work_experience_formset %}
                   <div class="work-experience-form mb-4 p-3 border rounded">
-                    <!-- Remove Work Experience Button -->
+                    <!-- Remove Work Experience Button - Only show for non-default forms -->
+                    {% if not forloop.first %}
                     <div class="d-flex justify-content-end mb-2">
                       <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-work-experience">
                         <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Work Experience" %}
                       </button>
                     </div>
+                    {% endif %}
                     
                     <!-- Work Experience Details -->
                     <div class="row">
@@ -225,6 +227,7 @@
                       <div class="projects-container" data-work-exp-index="{{ forloop.counter0 }}">
                         <!-- Project forms will be dynamically added here -->
                         <div class="project-form mb-3 p-3 border rounded bg-light">
+                          <!-- Remove Project Button - Only show for non-default projects -->
                           <div class="d-flex justify-content-end mb-2">
                             <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-project">
                               <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Project" %}
@@ -236,7 +239,7 @@
                                 <label class="oh-label" for="id_work_experience-{{ forloop.counter0 }}-projects-0-project_name">
                                   {% trans "Project Name" %}
                                 </label>
-                                <input type="text" class="form-control" name="work_experience-{{ forloop.counter0 }}-projects-0-project_name" placeholder="{% trans 'Enter project name' %}">
+                                <input type="text" class="form-control oh-input w-100" name="work_experience-{{ forloop.counter0 }}-projects-0-project_name" placeholder="{% trans 'Enter project name' %}">
                               </div>
                             </div>
                             <div class="col-md-6">
@@ -244,7 +247,7 @@
                                 <label class="oh-label" for="id_work_experience-{{ forloop.counter0 }}-projects-0-role">
                                   {% trans "Role" %}
                                 </label>
-                                <input type="text" class="form-control" name="work_experience-{{ forloop.counter0 }}-projects-0-role" placeholder="{% trans 'Your role in project' %}">
+                                <input type="text" class="form-control oh-input w-100" name="work_experience-{{ forloop.counter0 }}-projects-0-role" placeholder="{% trans 'Your role in project' %}">
                               </div>
                             </div>
                           </div>
@@ -254,7 +257,7 @@
                                 <label class="oh-label" for="id_work_experience-{{ forloop.counter0 }}-projects-0-technologies_used">
                                   {% trans "Technologies" %}
                                 </label>
-                                <input type="text" class="form-control" name="work_experience-{{ forloop.counter0 }}-projects-0-technologies_used" placeholder="{% trans 'Technologies used' %}">
+                                <input type="text" class="form-control oh-input w-100" name="work_experience-{{ forloop.counter0 }}-projects-0-technologies_used" placeholder="{% trans 'Technologies used' %}">
                               </div>
                             </div>
                             <div class="col-md-6">
@@ -262,7 +265,7 @@
                                 <label class="oh-label" for="id_work_experience-{{ forloop.counter0 }}-projects-0-project_url">
                                   {% trans "Project URL" %}
                                 </label>
-                                <input type="url" class="form-control" name="work_experience-{{ forloop.counter0 }}-projects-0-project_url" placeholder="{% trans 'Project link (optional)' %}">
+                                <input type="url" class="form-control oh-input w-100" name="work_experience-{{ forloop.counter0 }}-projects-0-project_url" placeholder="{% trans 'Project link (optional)' %}">
                               </div>
                             </div>
                           </div>
@@ -272,7 +275,7 @@
                                 <label class="oh-label" for="id_work_experience-{{ forloop.counter0 }}-projects-0-start_date">
                                   {% trans "Start Date" %}
                                 </label>
-                                <input type="date" class="form-control" name="work_experience-{{ forloop.counter0 }}-projects-0-start_date">
+                                <input type="date" class="form-control oh-input w-100" name="work_experience-{{ forloop.counter0 }}-projects-0-start_date">
                               </div>
                             </div>
                             <div class="col-md-6">
@@ -280,7 +283,7 @@
                                 <label class="oh-label" for="id_work_experience-{{ forloop.counter0 }}-projects-0-end_date">
                                   {% trans "End Date" %}
                                 </label>
-                                <input type="date" class="form-control" name="work_experience-{{ forloop.counter0 }}-projects-0-end_date">
+                                <input type="date" class="form-control oh-input w-100" name="work_experience-{{ forloop.counter0 }}-projects-0-end_date">
                               </div>
                             </div>
                           </div>
@@ -290,7 +293,7 @@
                                 <label class="oh-label" for="id_work_experience-{{ forloop.counter0 }}-projects-0-project_description">
                                   {% trans "Project Description" %}
                                 </label>
-                                <textarea class="form-control" rows="3" name="work_experience-{{ forloop.counter0 }}-projects-0-project_description" placeholder="{% trans 'Describe the project and your contributions' %}"></textarea>
+                                <textarea class="form-control oh-input w-100" rows="3" name="work_experience-{{ forloop.counter0 }}-projects-0-project_description" placeholder="{% trans 'Describe the project and your contributions' %}"></textarea>
                               </div>
                             </div>
                           </div>
@@ -331,12 +334,14 @@
               {% if education_formset %}
                 {% for form in education_formset %}
                   <div class="education-form mb-4 p-3 border rounded">
-                    <!-- Remove Education Button -->
+                    <!-- Remove Education Button - Only show for non-default forms -->
+                    {% if not forloop.first %}
                     <div class="d-flex justify-content-end mb-2">
                       <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-education">
                         <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Education" %}
                       </button>
                     </div>
+                    {% endif %}
                     
                     <div class="row">
                       <div class="col-md-6">
@@ -503,12 +508,14 @@
               {% if skills_formset %}
                 {% for form in skills_formset %}
                   <div class="skills-form mb-4 p-3 border rounded">
-                    <!-- Remove Skill Button -->
+                    <!-- Remove Skill Button - Only show for non-default forms -->
+                    {% if not forloop.first %}
                     <div class="d-flex justify-content-end mb-2">
                       <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-skill">
                         <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Skill" %}
                       </button>
                     </div>
+                    {% endif %}
                     
                     <div class="row">
                       <div class="col-md-6">
@@ -569,12 +576,14 @@
               {% if certifications_formset %}
                 {% for form in certifications_formset %}
                   <div class="certifications-form mb-4 p-3 border rounded">
-                    <!-- Remove Certification Button -->
+                    <!-- Remove Certification Button - Only show for non-default forms -->
+                    {% if not forloop.first %}
                     <div class="d-flex justify-content-end mb-2">
                       <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-certification">
                         <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Certification" %}
                       </button>
                     </div>
+                    {% endif %}
                     
                     <div class="row">
                       <div class="col-md-6">
@@ -877,7 +886,7 @@
                                 <label class="oh-label" for="id_work_experience-${formCount}-projects-0-project_name">
                                   {% trans "Project Name" %}
                                 </label>
-                                <input type="text" class="form-control" name="work_experience-${formCount}-projects-0-project_name" placeholder="{% trans 'Enter project name' %}">
+                                <input type="text" class="form-control oh-input w-100" name="work_experience-${formCount}-projects-0-project_name" placeholder="{% trans 'Enter project name' %}">
                               </div>
                             </div>
                             <div class="col-md-6">
@@ -885,7 +894,7 @@
                                 <label class="oh-label" for="id_work_experience-${formCount}-projects-0-role">
                                   {% trans "Role" %}
                                 </label>
-                                <input type="text" class="form-control" name="work_experience-${formCount}-projects-0-role" placeholder="{% trans 'Your role in project' %}">
+                                <input type="text" class="form-control oh-input w-100" name="work_experience-${formCount}-projects-0-role" placeholder="{% trans 'Your role in project' %}">
                               </div>
                             </div>
                           </div>
@@ -895,7 +904,7 @@
                                 <label class="oh-label" for="id_work_experience-${formCount}-projects-0-technologies_used">
                                   {% trans "Technologies" %}
                                 </label>
-                                <input type="text" class="form-control" name="work_experience-${formCount}-projects-0-technologies_used" placeholder="{% trans 'Technologies used' %}">
+                                <input type="text" class="form-control oh-input w-100" name="work_experience-${formCount}-projects-0-technologies_used" placeholder="{% trans 'Technologies used' %}">
                               </div>
                             </div>
                             <div class="col-md-6">
@@ -903,7 +912,7 @@
                                 <label class="oh-label" for="id_work_experience-${formCount}-projects-0-project_url">
                                   {% trans "Project URL" %}
                                 </label>
-                                <input type="url" class="form-control" name="work_experience-${formCount}-projects-0-project_url" placeholder="{% trans 'Project link (optional)' %}">
+                                <input type="url" class="form-control oh-input w-100" name="work_experience-${formCount}-projects-0-project_url" placeholder="{% trans 'Project link (optional)' %}">
                               </div>
                             </div>
                           </div>
@@ -913,7 +922,7 @@
                                 <label class="oh-label" for="id_work_experience-${formCount}-projects-0-start_date">
                                   {% trans "Start Date" %}
                                 </label>
-                                <input type="date" class="form-control" name="work_experience-${formCount}-projects-0-start_date">
+                                <input type="date" class="form-control oh-input w-100" name="work_experience-${formCount}-projects-0-start_date">
                               </div>
                             </div>
                             <div class="col-md-6">
@@ -921,7 +930,7 @@
                                 <label class="oh-label" for="id_work_experience-${formCount}-projects-0-end_date">
                                   {% trans "End Date" %}
                                 </label>
-                                <input type="date" class="form-control" name="work_experience-${formCount}-projects-0-end_date">
+                                <input type="date" class="form-control oh-input w-100" name="work_experience-${formCount}-projects-0-end_date">
                               </div>
                             </div>
                           </div>
@@ -931,7 +940,7 @@
                                 <label class="oh-label" for="id_work_experience-${formCount}-projects-0-project_description">
                                   {% trans "Project Description" %}
                                 </label>
-                                <textarea class="form-control" rows="3" name="work_experience-${formCount}-projects-0-project_description" placeholder="{% trans 'Describe the project and your contributions' %}"></textarea>
+                                <textarea class="form-control oh-input w-100" rows="3" name="work_experience-${formCount}-projects-0-project_description" placeholder="{% trans 'Describe the project and your contributions' %}"></textarea>
                               </div>
                             </div>
                           </div>
@@ -959,6 +968,18 @@
               } else {
                 // Clone existing form
                 var row = $('.work-experience-form:first').clone(true);
+                
+                // Add remove button to cloned form if it doesn't exist
+                if (row.find('.remove-work-experience').length === 0) {
+                  var removeButton = `
+                    <div class="d-flex justify-content-end mb-2">
+                      <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-work-experience">
+                        <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Work Experience" %}
+                      </button>
+                    </div>
+                  `;
+                  row.prepend(removeButton);
+                }
                 
                 // Clear all form values
                 row.find('input, select, textarea').each(function() {
@@ -1108,6 +1129,19 @@
               } else {
                 // Clone existing form
                 var row = $('.education-form:first').clone(true);
+                
+                // Add remove button to cloned form if it doesn't exist
+                if (row.find('.remove-education').length === 0) {
+                  var removeButton = `
+                    <div class="d-flex justify-content-end mb-2">
+                      <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-education">
+                        <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Education" %}
+                      </button>
+                    </div>
+                  `;
+                  row.prepend(removeButton);
+                }
+                
                 row.find('input, select, textarea').each(function() {
                   var name = $(this).attr('name').replace(/education-\d+/, 'education-' + formCount);
                   var id = 'id_' + name;
@@ -1196,6 +1230,19 @@
               } else {
                 // Clone existing form
                 var row = $('.skills-form:first').clone(true);
+                
+                // Add remove button to cloned form if it doesn't exist
+                if (row.find('.remove-skill').length === 0) {
+                  var removeButton = `
+                    <div class="d-flex justify-content-end mb-2">
+                      <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-skill">
+                        <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Skill" %}
+                      </button>
+                    </div>
+                  `;
+                  row.prepend(removeButton);
+                }
+                
                 row.find('input, select, textarea').each(function() {
                   var name = $(this).attr('name').replace(/skills-\d+/, 'skills-' + formCount);
                   var id = 'id_' + name;
@@ -1336,6 +1383,19 @@
               } else {
                 // Clone existing form
                 var row = $('.certifications-form:first').clone(true);
+                
+                // Add remove button to cloned form if it doesn't exist
+                if (row.find('.remove-certification').length === 0) {
+                  var removeButton = `
+                    <div class="d-flex justify-content-end mb-2">
+                      <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-certification">
+                        <ion-icon name="trash-outline"></ion-icon> {% trans "Remove Certification" %}
+                      </button>
+                    </div>
+                  `;
+                  row.prepend(removeButton);
+                }
+                
                 row.find('input, select, textarea').each(function() {
                   var name = $(this).attr('name').replace(/certifications-\d+/, 'certifications-' + formCount);
                   var id = 'id_' + name;

@@ -42,6 +42,7 @@ from recruitment.forms import (
     InterviewScheduleApplicationForm,
     StageNoteApplicationForm,
     SimpleCandidateApplicationForm,
+    SimpleCandidateApplicationUpdateForm,
 )
 from recruitment.models import (
     CandidateApplication,
@@ -49,6 +50,7 @@ from recruitment.models import (
     Recruitment,
     Stage,
     StageNoteApplication,
+    JobPosition,
 )
 from recruitment.views.paginator_qry import paginator_qry
 
@@ -65,6 +67,13 @@ def candidate_application_create(request):
     
     if request.method == "POST":
         form = SimpleCandidateApplicationForm(request.POST)
+        # Add debugging
+        print("Form data:", request.POST)
+        print("Form is valid:", form.is_valid())
+        if not form.is_valid():
+            print("Form errors:", form.errors)
+            print("Form non-field errors:", form.non_field_errors())
+        
         if form.is_valid():
             try:
                 created_applications = form.save()
@@ -165,11 +174,11 @@ def candidate_application_update(request, app_id):
     This method is used to update candidate application
     """
     candidate_app = get_object_or_404(CandidateApplication, id=app_id)
-    form = CandidateApplicationUpdateForm(instance=candidate_app)
+    form = SimpleCandidateApplicationUpdateForm(instance=candidate_app)
     
     if request.method == "POST":
-        form = CandidateApplicationUpdateForm(
-            request.POST, request.FILES, instance=candidate_app
+        form = SimpleCandidateApplicationUpdateForm(
+            request.POST, instance=candidate_app
         )
         if form.is_valid():
             form.save()
@@ -182,7 +191,7 @@ def candidate_application_update(request, app_id):
     }
     return render(
         request, 
-        "candidate_application/candidate_application_update_form.html", 
+        "candidate_application/candidate_application_create_form.html", 
         context
     )
 
@@ -523,11 +532,62 @@ def candidate_application_filter_view(request):
     """
     This method is used to filter candidate applications
     """
-    candidate_applications = CandidateApplication.objects.filter(is_active=True)
-    filter_obj = CandidateApplicationFilter(request.GET, queryset=candidate_applications)
+    field = request.GET.get("field")
+    recruitment_id = request.GET.get("recruitment_id")
+    stage_id = request.GET.get("stage_id")
+    candidate_id = request.GET.get("candidate_id")
+    job_position_id = request.GET.get("job_position_id")
+    is_active = request.GET.get("is_active")
+    hired = request.GET.get("hired")
+    converted = request.GET.get("converted")
+    canceled = request.GET.get("canceled")
+
+    filters = {}
+    if recruitment_id:
+        filters["recruitment_id"] = recruitment_id
+    if stage_id:
+        filters["stage_id"] = stage_id
+    if candidate_id:
+        filters["candidate_id"] = candidate_id
+    if job_position_id:
+        filters["job_position_id"] = job_position_id
+    if is_active:
+        filters["is_active"] = is_active
+    if hired:
+        filters["hired"] = hired
+    if converted:
+        filters["converted"] = converted
+    if canceled:
+        filters["canceled"] = canceled
+
+    queryset = CandidateApplication.objects.filter(**filters)
+    template = "candidate_application/candidate_application_list.html"
+    context = {"candidate_applications": queryset}
+    return render(request, template, context)
+
+
+@login_required
+def get_job_positions(request):
+    """
+    AJAX view to get job positions filtered by recruitment
+    """
+    recruitment_id = request.GET.get('recruitment_id')
     
-    context = {
-        "candidate_applications": filter_obj.qs,
-        "filter_obj": filter_obj,
-    }
-    return render(request, "candidate_application/filter_view.html", context) 
+    if not recruitment_id:
+        return JsonResponse({'job_positions': []})
+    
+    try:
+        recruitment = Recruitment.objects.get(id=recruitment_id)
+        job_positions = recruitment.open_positions.all().order_by('job_position')
+        
+        job_positions_data = [
+            {
+                'id': job_position.id,
+                'name': job_position.job_position
+            }
+            for job_position in job_positions
+        ]
+        
+        return JsonResponse({'job_positions': job_positions_data})
+    except Recruitment.DoesNotExist:
+        return JsonResponse({'job_positions': []}) 

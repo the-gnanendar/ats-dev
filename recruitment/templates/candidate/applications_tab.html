@@ -1,0 +1,182 @@
+{% extends 'index.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<div class="oh-card">
+    <div class="oh-card__header">
+        <h4 class="oh-card__title">{% trans "Job Applications" %}</h4>
+        <div class="oh-card__actions">
+            <a href="{% url 'candidate-application-create' %}?candidate_id={{ candidate.id }}" 
+               class="oh-btn oh-btn--secondary">
+                <ion-icon name="add-outline"></ion-icon>
+                {% trans "New Application" %}
+            </a>
+        </div>
+    </div>
+    
+    <div class="oh-card__body">
+        {% if applications %}
+            <div class="oh-table oh-table--striped">
+                <div class="oh-table__header">
+                    <div class="oh-table__row">
+                        <div class="oh-table__cell">{% trans "Position" %}</div>
+                        <div class="oh-table__cell">{% trans "Recruitment" %}</div>
+                        <div class="oh-table__cell">{% trans "Stage" %}</div>
+                        <div class="oh-table__cell">{% trans "Status" %}</div>
+                        <div class="oh-table__cell">{% trans "Applied Date" %}</div>
+                        <div class="oh-table__cell">{% trans "Actions" %}</div>
+                    </div>
+                </div>
+                
+                <div class="oh-table__body">
+                    {% for application in applications %}
+                    <div class="oh-table__row">
+                        <div class="oh-table__cell">
+                            <div class="oh-profile oh-profile--sm">
+                                <div class="oh-profile__avatar">
+                                    {% if application.job_position_id %}
+                                        <img src="{{ application.job_position_id.icon.url|default:'/static/images/default_job.png' }}" 
+                                             alt="{{ application.job_position_id.job_position }}" 
+                                             class="oh-profile__avatar-img">
+                                    {% else %}
+                                        <div class="oh-profile__avatar-placeholder">
+                                            <ion-icon name="briefcase-outline"></ion-icon>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="oh-profile__info">
+                                    <span class="oh-profile__info-name">
+                                        {{ application.job_position_id.job_position|default:"N/A" }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="oh-table__cell">
+                            <span class="oh-badge oh-badge--secondary">
+                                {{ application.recruitment_id.title|default:"N/A" }}
+                            </span>
+                        </div>
+                        
+                        <div class="oh-table__cell">
+                            {% if application.stage_id %}
+                                <span class="oh-badge oh-badge--info">
+                                    {{ application.stage_id.stage }}
+                                </span>
+                            {% else %}
+                                <span class="oh-badge oh-badge--warning">{% trans "No Stage" %}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="oh-table__cell">
+                            {% if application.hired %}
+                                <span class="oh-badge oh-badge--success">{% trans "Hired" %}</span>
+                            {% elif application.canceled %}
+                                <span class="oh-badge oh-badge--danger">{% trans "Canceled" %}</span>
+                            {% elif application.converted %}
+                                <span class="oh-badge oh-badge--primary">{% trans "Converted" %}</span>
+                            {% else %}
+                                <span class="oh-badge oh-badge--secondary">{% trans "Active" %}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="oh-table__cell">
+                            <span class="oh-text--sm">
+                                {{ application.last_updated|date:"M d, Y" }}
+                            </span>
+                        </div>
+                        
+                        <div class="oh-table__cell">
+                            <div class="oh-dropdown" x-data="{open: false}">
+                                <button class="oh-btn oh-btn--light-bkg" @click="open = !open">
+                                    <ion-icon name="ellipsis-vertical-sharp"></ion-icon>
+                                </button>
+                                <div class="oh-dropdown__menu" x-show="open" @click.outside="open = false">
+                                    <ul class="oh-dropdown__items">
+                                        <li class="oh-dropdown__item">
+                                            <a href="{% url 'candidate-application-view-individual' application.id %}" 
+                                               class="oh-dropdown__link">
+                                                <ion-icon name="eye-outline"></ion-icon>
+                                                {% trans "View Details" %}
+                                            </a>
+                                        </li>
+                                        <li class="oh-dropdown__item">
+                                            <a href="{% url 'candidate-application-update' application.id %}" 
+                                               class="oh-dropdown__link">
+                                                <ion-icon name="create-outline"></ion-icon>
+                                                {% trans "Edit" %}
+                                            </a>
+                                        </li>
+                                        {% if application.hired %}
+                                        <li class="oh-dropdown__item">
+                                            <a href="{% url 'candidate-application-conversion' application.id %}" 
+                                               class="oh-dropdown__link">
+                                                <ion-icon name="person-add-outline"></ion-icon>
+                                                {% trans "Convert to Employee" %}
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% else %}
+            <div class="oh-empty-state">
+                <div class="oh-empty-state__icon">
+                    <ion-icon name="document-outline"></ion-icon>
+                </div>
+                <h5 class="oh-empty-state__title">{% trans "No Applications Yet" %}</h5>
+                <p class="oh-empty-state__text">
+                    {% trans "This candidate hasn't applied to any positions yet." %}
+                </p>
+                <div class="oh-empty-state__actions">
+                    <a href="{% url 'candidate-application-create' %}?candidate_id={{ candidate.id }}" 
+                       class="oh-btn oh-btn--primary">
+                        <ion-icon name="add-outline"></ion-icon>
+                        {% trans "Create First Application" %}
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.oh-profile__avatar-placeholder {
+    width: 32px;
+    height: 32px;
+    background-color: #f0f0f0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+}
+
+.oh-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.oh-empty-state__icon {
+    font-size: 48px;
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+.oh-empty-state__title {
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.oh-empty-state__text {
+    color: #666;
+    margin-bottom: 24px;
+}
+</style>
+{% endblock %} 

@@ -16,6 +16,7 @@ from recruitment.forms import QuestionForm, RecruitmentCreationForm, StageCreati
 from recruitment.models import Candidate, Recruitment, RecruitmentSurvey, Stage
 from recruitment.views import linkedin, views
 from recruitment.views.actions import get_mail_preview, get_template, get_template_hint
+from recruitment.candidate_application_urls import candidate_application_urlpatterns
 
 urlpatterns = [
     path("recruitment-create", views.recruitment, name="recruitment-create"),
@@ -146,11 +147,17 @@ urlpatterns = [
         name="rec-remove-stage-manager",
     ),
     path(
+        "remove-stage-interviewer/<int:mid>/<int:sid>/",
+        recruitment.views.actions.remove_stage_interviewer,
+        name="rec-remove-stage-interviewer",
+    ),
+    path(
         "remove-recruitment-manager/<int:mid>/<int:rid>/",
         recruitment.views.actions.remove_recruitment_manager,
         name="remove-recruitment-manager",
     ),
     path("candidate-create", views.candidate, name="candidate-create"),
+
     path(
         "recruitment-stage-get/<int:rec_id>/",
         views.recruitment_stage_get,
@@ -471,6 +478,7 @@ urlpatterns = [
         name="skill-zone-cand-archive",
     ),
     path("to-skill-zone/<int:cand_id>", views.to_skill_zone, name="to-skill-zone"),
+    path("candidate-skill-rating/<int:cand_id>", views.candidate_skill_rating, name="candidate-skill-rating"),
     path(
         "skill-zone-cand-delete/<int:sz_cand_id>",
         views.skill_zone_cand_delete,
@@ -572,6 +580,16 @@ urlpatterns = [
         "create-skills/",
         views.create_skills,
         name="create-skills",
+    ),
+    path(
+        "create-technical-skills/",
+        views.create_technical_skills,
+        name="create-technical-skills",
+    ),
+    path(
+        "create-non-technical-skills/",
+        views.create_non_technical_skills,
+        name="create-non-technical-skills",
     ),
     path(
         "delete-skills/",
@@ -704,4 +722,37 @@ urlpatterns = [
     path(
         "val-linkedin/<int:pk>/", linkedin.validate_linkedin_token, name="val-linkedin"
     ),
+    path(
+        "candidate-applications/<int:candidate_id>/",
+        views.candidate_applications_view,
+        name="candidate-applications",
+    ),
+    path(
+        "candidate-work-experience/<int:candidate_id>/",
+        views.candidate_work_experience_update,
+        name="candidate-work-experience-update",
+    ),
+    path(
+        "candidate-education/<int:candidate_id>/",
+        views.candidate_education_update,
+        name="candidate-education-update",
+    ),
+    path(
+        "candidate-certifications/<int:candidate_id>/",
+        views.candidate_certifications_update,
+        name="candidate-certifications-update",
+    ),
+    path(
+        "candidate-skills/<int:candidate_id>/",
+        views.candidate_skills_update,
+        name="candidate-skills-update",
+    ),
+    path(
+        "candidate-work-projects/<int:work_experience_id>/",
+        views.candidate_work_projects_update,
+        name="candidate-work-projects-update",
+    ),
 ]
+
+# CandidateApplication URLs
+urlpatterns += candidate_application_urlpatterns

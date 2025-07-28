@@ -116,6 +116,38 @@ class Skill(HorillaModel):
         verbose_name_plural = _("Skills")
 
 
+class TechnicalSkill(HorillaModel):
+    title = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.title
+
+    def save(self, *args, **kwargs):
+        title = self.title
+        self.title = title.capitalize()
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = _("Technical Skill")
+        verbose_name_plural = _("Technical Skills")
+
+
+class NonTechnicalSkill(HorillaModel):
+    title = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.title
+
+    def save(self, *args, **kwargs):
+        title = self.title
+        self.title = title.capitalize()
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = _("Non-Technical Skill")
+        verbose_name_plural = _("Non-Technical Skills")
+
+
 class Recruitment(HorillaModel):
     """
     Recruitment model
@@ -124,7 +156,7 @@ class Recruitment(HorillaModel):
     title = models.CharField(
         max_length=50, null=True, blank=True, verbose_name=_("Title")
     )
-    description = models.TextField(null=True, verbose_name=_("Description"))
+
     is_event_based = models.BooleanField(
         default=False,
         help_text=_("To start recruitment for multiple job positions"),
@@ -162,6 +194,39 @@ class Recruitment(HorillaModel):
     )
     vacancy = models.IntegerField(default=0, null=True, verbose_name=_("Vacancy"))
     recruitment_managers = models.ManyToManyField(Employee, verbose_name=_("Managers"))
+    
+    # Default Stage Manager for all stages
+    default_stage_manager = models.ManyToManyField(
+        Employee, 
+        verbose_name=_("Default Stage Manager"),
+        help_text=_("This manager will be assigned to all stages by default"),
+        related_name="default_stage_manager_recruitments",
+        blank=True
+    )
+    
+    # Interviewer assignments for specific stages
+    l1_interviewer = models.ManyToManyField(
+        Employee,
+        verbose_name=_("L1 Interviewer"),
+        help_text=_("Interviewers for L1 Interview stage"),
+        related_name="l1_interviewer_recruitments",
+        blank=True
+    )
+    l2_interviewer = models.ManyToManyField(
+        Employee,
+        verbose_name=_("L2 Interviewer"),
+        help_text=_("Interviewers for L2 Interview stage"),
+        related_name="l2_interviewer_recruitments",
+        blank=True
+    )
+    l3_interviewer = models.ManyToManyField(
+        Employee,
+        verbose_name=_("L3 Interviewer"),
+        help_text=_("Interviewers for L3 Interview stage"),
+        related_name="l3_interviewer_recruitments",
+        blank=True
+    )
+    
     survey_templates = models.ManyToManyField(
         SurveyTemplate, blank=True, verbose_name=_("Survey Templates")
     )
@@ -176,7 +241,8 @@ class Recruitment(HorillaModel):
         default=django.utils.timezone.now, verbose_name=_("Start Date")
     )
     end_date = models.DateField(blank=True, null=True, verbose_name=_("End Date"))
-    skills = models.ManyToManyField(Skill, blank=True, verbose_name=_("Skills"))
+    technical_skills = models.ManyToManyField(TechnicalSkill, blank=True, verbose_name=_("Technical Skills"))
+    non_technical_skills = models.ManyToManyField(NonTechnicalSkill, blank=True, verbose_name=_("Non-Technical Skills"))
     linkedin_account_id = models.ForeignKey(
         "recruitment.LinkedInAccount",
         on_delete=models.PROTECT,
@@ -205,7 +271,127 @@ class Recruitment(HorillaModel):
         help_text=_("Resume not mandatory for candidate creation"),
         verbose_name=_("Optional Resume"),
     )
-    xss_exempt_fields = ["description"]  # 807
+    
+    # Salary Range
+    salary_min = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("Minimum Salary"),
+        help_text=_("Minimum annual salary for this position")
+    )
+    salary_max = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("Maximum Salary"),
+        help_text=_("Maximum annual salary for this position")
+    )
+    salary_currency = models.CharField(
+        max_length=3,
+        default="USD",
+        verbose_name=_("Salary Currency"),
+        help_text=_("Currency for salary range (e.g., USD, EUR, GBP)")
+    )
+    
+    # Employment Type
+    employment_type_choices = [
+        ("full_time", _("Full Time")),
+        ("part_time", _("Part Time")),
+        ("contract", _("Contract")),
+        ("internship", _("Internship")),
+        ("freelance", _("Freelance")),
+        ("remote", _("Remote")),
+        ("hybrid", _("Hybrid")),
+    ]
+    employment_type = models.CharField(
+        max_length=20,
+        choices=employment_type_choices,
+        default="full_time",
+        verbose_name=_("Employment Type"),
+        help_text=_("Type of employment for this position")
+    )
+    
+    # Location Details
+    work_location = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        verbose_name=_("Work Location"),
+        help_text=_("City, State, or specific office location")
+    )
+    remote_policy = models.CharField(
+        max_length=20,
+        choices=[
+            ("on_site", _("On-Site Only")),
+            ("remote", _("Fully Remote")),
+            ("hybrid", _("Hybrid (Remote + Office)")),
+            ("flexible", _("Flexible")),
+        ],
+        default="on_site",
+        verbose_name=_("Remote Work Policy"),
+        help_text=_("Remote work policy for this position")
+    )
+    
+    # Experience Requirements
+    min_experience_years = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_("Minimum Years of Experience"),
+        help_text=_("Minimum years of relevant experience required")
+    )
+    max_experience_years = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_("Maximum Years of Experience"),
+        help_text=_("Maximum years of experience (optional)")
+    )
+    required_education_level = models.CharField(
+        max_length=20,
+        choices=[
+            ("high_school", _("High School")),
+            ("associate", _("Associate Degree")),
+            ("bachelor", _("Bachelor's Degree")),
+            ("master", _("Master's Degree")),
+            ("phd", _("PhD")),
+            ("none", _("No Degree Required")),
+        ],
+        default="bachelor",
+        verbose_name=_("Required Education Level"),
+        help_text=_("Minimum education level required")
+    )
+    
+    # Application Deadline
+    application_deadline = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Application Deadline"),
+        help_text=_("Last date to submit applications")
+    )
+    
+    # Job Description Sections
+    job_summary = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name=_("Job Summary"),
+        help_text=_("Brief overview of the role and its impact")
+    )
+    key_responsibilities = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name=_("Key Responsibilities"),
+        help_text=_("Main duties and responsibilities for this role")
+    )
+    preferred_qualifications = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name=_("Preferred Qualifications"),
+        help_text=_("Additional qualifications that would be beneficial")
+    )
+    
+    xss_exempt_fields = ["job_summary", "key_responsibilities", "preferred_qualifications"]  # 807
 
     class Meta:
         """
@@ -279,13 +465,53 @@ class Recruitment(HorillaModel):
         """
         This method is used to check wether the vaccancy for the recruitment is completed or not
         """
-        hired_stage = Stage.objects.filter(
-            recruitment_id=self, stage_type="hired"
+        selected_stage = Stage.objects.filter(
+            recruitment_id=self, stage_type="selected"
         ).first()
-        if hired_stage:
-            hired_candidate = hired_stage.candidate_set.all().exclude(canceled=True)
-            if len(hired_candidate) >= self.vacancy:
+        if selected_stage:
+            selected_candidate = selected_stage.candidate_set.all().exclude(canceled=True)
+            if len(selected_candidate) >= self.vacancy:
                 return True
+    
+    def create_default_stages(self):
+        """
+        This method creates default stages for the recruitment
+        """
+        default_stages = [
+            {"stage": "Sourced", "stage_type": "sourced", "sequence": 1},
+            {"stage": "Shortlisted", "stage_type": "shortlisted", "sequence": 2},
+            {"stage": "L1 Interview", "stage_type": "l1_interview", "sequence": 3},
+            {"stage": "L2 Interview", "stage_type": "l2_interview", "sequence": 4},
+            {"stage": "L3 Interview", "stage_type": "l3_interview", "sequence": 5},
+            {"stage": "Test", "stage_type": "test", "sequence": 6},
+            {"stage": "Selected", "stage_type": "selected", "sequence": 7},
+            {"stage": "Rejected", "stage_type": "rejected", "sequence": 8},
+            {"stage": "On Hold", "stage_type": "on-hold", "sequence": 9},
+        ]
+        
+        for stage_data in default_stages:
+            stage, created = Stage.objects.get_or_create(
+                recruitment_id=self,
+                stage=stage_data["stage"],
+                defaults={
+                    "stage_type": stage_data["stage_type"],
+                    "sequence": stage_data["sequence"],
+                }
+            )
+            
+            # Assign default stage manager to all stages
+            if self.default_stage_manager.exists():
+                stage.stage_managers.set(self.default_stage_manager.all())
+            
+            # Assign specific interviewers to interview stages
+            if stage_data["stage_type"] == "l1_interview" and self.l1_interviewer.exists():
+                stage.stage_interviewers.set(self.l1_interviewer.all())
+            elif stage_data["stage_type"] == "l2_interview" and self.l2_interviewer.exists():
+                stage.stage_interviewers.set(self.l2_interviewer.all())
+            elif stage_data["stage_type"] == "l3_interview" and self.l3_interviewer.exists():
+                stage.stage_interviewers.set(self.l3_interviewer.all())
+            
+            stage.save()
 
 
 class Stage(HorillaModel):
@@ -294,12 +520,17 @@ class Stage(HorillaModel):
     """
 
     stage_types = [
-        ("initial", _("Initial")),
-        ("applied", _("Applied")),
+        ("sourced", _("Sourced")),
+        ("shortlisted", _("Shortlisted")),
+        ("l1_interview", _("L1 Interview")),
+        ("l2_interview", _("L2 Interview")),
+        ("l3_interview", _("L3 Interview")),
         ("test", _("Test")),
         ("interview", _("Interview")),
+        ("selected", _("Selected")),
+        ("rejected", _("Rejected")),
+        ("on-hold", _("On Hold")),
         ("cancelled", _("Cancelled")),
-        ("hired", _("Hired")),
     ]
     recruitment_id = models.ForeignKey(
         Recruitment,
@@ -308,11 +539,17 @@ class Stage(HorillaModel):
         verbose_name=_("Recruitment"),
     )
     stage_managers = models.ManyToManyField(Employee, verbose_name=_("Stage Managers"))
+    stage_interviewers = models.ManyToManyField(
+        Employee, 
+        verbose_name=_("Stage Interviewers"),
+        related_name="stage_interviewers",
+        blank=True
+    )
     stage = models.CharField(max_length=50, verbose_name=_("Stage"))
     stage_type = models.CharField(
         max_length=20,
         choices=stage_types,
-        default="interview",
+        default="sourced",
         verbose_name=_("Stage Type"),
     )
     sequence = models.IntegerField(null=True, default=0)
@@ -348,79 +585,38 @@ class Stage(HorillaModel):
 
 class Candidate(HorillaModel):
     """
-    Candidate model
+    Candidate model - recruitment-agnostic candidate profile
     """
 
     choices = [("male", _("Male")), ("female", _("Female")), ("other", _("Other"))]
-    offer_letter_statuses = [
-        ("not_sent", _("Not Sent")),
-        ("sent", _("Sent")),
-        ("accepted", _("Accepted")),
-        ("rejected", _("Rejected")),
-        ("joined", _("Joined")),
-    ]
     source_choices = [
         ("application", _("Application Form")),
         ("software", _("Inside software")),
+        ("referral", _("Employee Referral")),
+        ("linkedin", _("LinkedIn")),
+        ("website", _("Company Website")),
         ("other", _("Other")),
     ]
+    
+    # Core Identity Fields
     name = models.CharField(max_length=100, null=True, verbose_name=_("Name"))
-    profile = models.ImageField(upload_to=candidate_photo_upload_path, null=True)
-    portfolio = models.URLField(max_length=200, blank=True)
-    recruitment_id = models.ForeignKey(
-        Recruitment,
-        on_delete=models.PROTECT,
-        null=True,
-        related_name="candidate",
-        verbose_name=_("Recruitment"),
-    )
-    job_position_id = models.ForeignKey(
-        JobPosition,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        verbose_name=_("Job Position"),
-    )
-    stage_id = models.ForeignKey(
-        Stage,
-        on_delete=models.PROTECT,
-        null=True,
-        verbose_name=_("Stage"),
-    )
-    converted_employee_id = models.ForeignKey(
-        Employee,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="candidate_get",
-        verbose_name=_("Employee"),
-    )
-    schedule_date = models.DateTimeField(
-        blank=True, null=True, verbose_name=_("Schedule date")
-    )
     email = models.EmailField(max_length=254, unique=True, verbose_name=_("Email"))
     mobile = models.CharField(
         max_length=15,
         blank=True,
-        validators=[
-            validate_mobile,
-        ],
+        validators=[validate_mobile],
         verbose_name=_("Mobile"),
     )
+    
+    # Profile Information
+    profile = models.ImageField(upload_to=candidate_photo_upload_path, null=True)
+    portfolio = models.URLField(max_length=200, blank=True)
     resume = models.FileField(
         upload_to="recruitment/resume",
-        validators=[
-            validate_pdf,
-        ],
+        validators=[validate_pdf],
     )
-    referral = models.ForeignKey(
-        Employee,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="candidate_referral",
-        verbose_name=_("Referral"),
-    )
+    
+    # Personal Information
     address = models.TextField(
         null=True, blank=True, verbose_name=_("Address"), max_length=255
     )
@@ -444,6 +640,8 @@ class Candidate(HorillaModel):
         default="male",
         verbose_name=_("Gender"),
     )
+    
+    # Source Information
     source = models.CharField(
         max_length=20,
         choices=source_choices,
@@ -451,38 +649,36 @@ class Candidate(HorillaModel):
         blank=True,
         verbose_name=_("Source"),
     )
-    start_onboard = models.BooleanField(default=False, verbose_name=_("Start Onboard"))
-    hired = models.BooleanField(default=False, verbose_name=_("Hired"))
-    canceled = models.BooleanField(default=False, verbose_name=_("Canceled"))
-    converted = models.BooleanField(default=False, verbose_name=_("Converted"))
-    joining_date = models.DateField(
-        blank=True, null=True, verbose_name=_("Joining Date")
+    referral = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="candidate_referral",
+        verbose_name=_("Referral"),
     )
+    
+    # Employee Conversion (General)
+    converted_employee_id = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="candidate_get",
+        verbose_name=_("Employee"),
+    )
+    converted = models.BooleanField(default=False, verbose_name=_("Converted"))
+    
+    # Audit and Metadata
     history = HorillaAuditLog(
         related_name="history_set",
-        bases=[
-            HorillaAuditInfo,
-        ],
+        bases=[HorillaAuditInfo],
     )
-    sequence = models.IntegerField(null=True, default=0)
-
-    probation_end = models.DateField(null=True, editable=False)
-    offer_letter_status = models.CharField(
-        max_length=10,
-        choices=offer_letter_statuses,
-        default="not_sent",
-        editable=False,
-        verbose_name=_("Offer Letter Status"),
-    )
-    objects = HorillaCompanyManager(related_company_field="recruitment_id__company_id")
     last_updated = models.DateField(null=True, auto_now=True)
-
+    
+    # Manager and settings
+    objects = models.Manager()  # Use default manager since no company relationship
     converted_employee_id.exclude_from_automation = True
-    mail_to_related_fields = [
-        ("stage_id__stage_managers__get_mail", "Stage Managers"),
-        ("recruitment_id__recruitment_managers__get_mail", "Recruitment Managers"),
-    ]
-    hired_date = models.DateField(null=True, blank=True, editable=False)
 
     def __str__(self):
         return f"{self.name}"
@@ -519,19 +715,15 @@ class Candidate(HorillaModel):
 
     def get_company(self):
         """
-        This method is used to return the company
+        This method is used to return the company - now based on employee conversion
         """
-        return getattr(
-            getattr(getattr(self, "recruitment_id", None), "company_id", None),
-            "company",
-            None,
-        )
-
-    def get_job_position(self):
-        """
-        This method is used to return the job position of the candidate
-        """
-        return self.job_position_id.job_position
+        if self.converted_employee_id:
+            return getattr(
+                getattr(self.converted_employee_id, "employee_work_info", None),
+                "company_id",
+                None,
+            )
+        return None
 
     def get_email(self):
         """
@@ -566,9 +758,8 @@ class Candidate(HorillaModel):
 
     def get_interview(self):
         """
-        This method is used to get the interview dates and times for the candidate for the mail templates
+        This method returns interview information for this candidate across all their applications
         """
-
         interviews = InterviewSchedule.objects.filter(candidate_id=self.id)
         if interviews:
             interview_info = "<table>"
@@ -590,29 +781,7 @@ class Candidate(HorillaModel):
             return ""
 
     def save(self, *args, **kwargs):
-        if self.stage_id is not None:
-            self.hired = self.stage_id.stage_type == "hired"
-
-        if not self.recruitment_id.is_event_based and self.job_position_id is None:
-            self.job_position_id = self.recruitment_id.job_position_id
-        if self.job_position_id not in self.recruitment_id.open_positions.all():
-            raise ValidationError({"job_position_id": _("Choose valid choice")})
-        if self.recruitment_id.is_event_based and self.job_position_id is None:
-            raise ValidationError({"job_position_id": _("This field is required.")})
-        if self.stage_id and self.stage_id.stage_type == "cancelled":
-            self.canceled = True
-        if self.canceled:
-            cancelled_stage = Stage.objects.filter(
-                recruitment_id=self.recruitment_id, stage_type="cancelled"
-            ).first()
-            if not cancelled_stage:
-                cancelled_stage = Stage.objects.create(
-                    recruitment_id=self.recruitment_id,
-                    stage="Cancelled Candidates",
-                    stage_type="cancelled",
-                    sequence=50,
-                )
-            self.stage_id = cancelled_stage
+        # Ensure employee uniqueness for candidate conversion
         if (
             self.converted_employee_id
             and Candidate.objects.filter(
@@ -621,11 +790,7 @@ class Candidate(HorillaModel):
             .exclude(id=self.id)
             .exists()
         ):
-            raise ValidationError(_("Employee is uniques for candidate"))
-
-        if self.converted:
-            self.hired = False
-            self.canceled = False
+            raise ValidationError(_("Employee is unique for candidate"))
 
         super().save(*args, **kwargs)
 
@@ -633,16 +798,11 @@ class Candidate(HorillaModel):
         """
         Meta class to add the additional info
         """
-
-        unique_together = (
-            "email",
-            "recruitment_id",
-        )
         permissions = (
             ("view_history", "View Candidate History"),
             ("archive_candidate", "Archive Candidate"),
         )
-        ordering = ["sequence"]
+        ordering = ["name"]
         verbose_name = _("Candidate")
         verbose_name_plural = _("Candidates")
 
@@ -1123,3 +1283,914 @@ class LinkedInAccount(HorillaModel):
             path="is_active_toggle.html",
             context={"instance": self, "url": url},
         )
+
+
+class CandidateApplication(HorillaModel):
+    """
+    CandidateApplication junction model for multiple recruitments per candidate
+    This model represents a specific application instance to a recruitment
+    """
+
+    choices = [("male", _("Male")), ("female", _("Female")), ("other", _("Other"))]
+    offer_letter_statuses = [
+        ("not_sent", _("Not Sent")),
+        ("sent", _("Sent")),
+        ("accepted", _("Accepted")),
+        ("rejected", _("Rejected")),
+        ("joined", _("Joined")),
+    ]
+    source_choices = [
+        ("application", _("Application Form")),
+        ("software", _("Inside software")),
+        ("other", _("Other")),
+    ]
+
+    # Core identity fields
+    name = models.CharField(max_length=100, null=True, verbose_name=_("Name"))
+    email = models.EmailField(max_length=254, verbose_name=_("Email"))
+    profile = models.ImageField(upload_to=candidate_photo_upload_path, null=True)
+    portfolio = models.URLField(max_length=200, blank=True)
+    mobile = models.CharField(
+        max_length=15,
+        blank=True,
+        validators=[validate_mobile],
+        verbose_name=_("Mobile"),
+    )
+    resume = models.FileField(
+        upload_to="recruitment/resume",
+        validators=[validate_pdf],
+    )
+    
+    # Personal information
+    address = models.TextField(
+        null=True, blank=True, verbose_name=_("Address"), max_length=255
+    )
+    country = models.CharField(
+        max_length=30, null=True, blank=True, verbose_name=_("Country")
+    )
+    dob = models.DateField(null=True, blank=True, verbose_name=_("Date of Birth"))
+    state = models.CharField(
+        max_length=30, null=True, blank=True, verbose_name=_("State")
+    )
+    city = models.CharField(
+        max_length=30, null=True, blank=True, verbose_name=_("City")
+    )
+    zip = models.CharField(
+        max_length=30, null=True, blank=True, verbose_name=_("Zip Code")
+    )
+    gender = models.CharField(
+        max_length=15,
+        choices=choices,
+        null=True,
+        default="male",
+        verbose_name=_("Gender"),
+    )
+
+    # Application-specific relationships
+    recruitment_id = models.ForeignKey(
+        Recruitment,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="candidate_applications",
+        verbose_name=_("Recruitment"),
+    )
+    job_position_id = models.ForeignKey(
+        JobPosition,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name=_("Job Position"),
+    )
+    stage_id = models.ForeignKey(
+        Stage,
+        on_delete=models.PROTECT,
+        null=True,
+        verbose_name=_("Stage"),
+    )
+    converted_employee_id = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="candidate_application_get",
+        verbose_name=_("Employee"),
+    )
+    referral = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="candidate_application_referral",
+        verbose_name=_("Referral"),
+    )
+
+    # Application status and timeline
+    schedule_date = models.DateTimeField(
+        blank=True, null=True, verbose_name=_("Schedule date")
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=source_choices,
+        null=True,
+        blank=True,
+        verbose_name=_("Source"),
+    )
+    start_onboard = models.BooleanField(default=False, verbose_name=_("Start Onboard"))
+    hired = models.BooleanField(default=False, verbose_name=_("Hired"))
+    canceled = models.BooleanField(default=False, verbose_name=_("Canceled"))
+    converted = models.BooleanField(default=False, verbose_name=_("Converted"))
+    joining_date = models.DateField(
+        blank=True, null=True, verbose_name=_("Joining Date")
+    )
+    sequence = models.IntegerField(null=True, default=0)
+    probation_end = models.DateField(null=True, editable=False)
+    offer_letter_status = models.CharField(
+        max_length=10,
+        choices=offer_letter_statuses,
+        default="not_sent",
+        editable=False,
+        verbose_name=_("Offer Letter Status"),
+    )
+    last_updated = models.DateField(null=True, auto_now=True)
+    hired_date = models.DateField(null=True, blank=True, editable=False)
+
+    # Audit trail
+    history = HorillaAuditLog(
+        related_name="application_history_set",
+        bases=[HorillaAuditInfo],
+    )
+
+    # Manager and notification settings
+    objects = HorillaCompanyManager(related_company_field="recruitment_id__company_id")
+    converted_employee_id.exclude_from_automation = True
+    mail_to_related_fields = [
+        ("stage_id__stage_managers__get_mail", "Stage Managers"),
+        ("recruitment_id__recruitment_managers__get_mail", "Recruitment Managers"),
+    ]
+
+    def __str__(self):
+        return f"{self.name} - {self.recruitment_id.title if self.recruitment_id else 'No Recruitment'}"
+
+    def is_offer_rejected(self):
+        """
+        Is offer rejected checking method
+        """
+        first = RejectedCandidate.objects.filter(candidate_id=self).first()
+        if first:
+            return first.reject_reason_id.count() > 0
+        return first
+
+    def get_full_name(self):
+        """
+        Method will return candidate full name
+        """
+        return str(self.name)
+
+    def get_avatar(self):
+        """
+        Method will return the api to the avatar or path to the profile image
+        """
+        url = (
+            f"https://ui-avatars.com/api/?name={self.get_full_name()}&background=random"
+        )
+        if self.profile:
+            full_filename = self.profile.name
+            if default_storage.exists(full_filename):
+                url = self.profile.url
+        return url
+
+    def get_company(self):
+        """
+        This method is used to return the company
+        """
+        return getattr(
+            getattr(getattr(self, "recruitment_id", None), "company_id", None),
+            "company",
+            None,
+        )
+
+    def get_job_position(self):
+        """
+        This method is used to return the job position of the candidate
+        """
+        return self.job_position_id.job_position if self.job_position_id else None
+
+    def get_email(self):
+        """
+        Return email
+        """
+        return self.email
+
+    def get_mail(self):
+        """
+        Return email for mail functionality
+        """
+        return self.get_email()
+
+    def phone(self):
+        return self.mobile
+
+    def tracking(self):
+        """
+        This method is used to return the tracked history of the instance
+        """
+        return get_diff(self)
+
+    def get_last_sent_mail(self):
+        """
+        This method is used to get last send mail
+        """
+        from base.models import EmailLog
+
+        return (
+            EmailLog.objects.filter(to__icontains=self.email)
+            .order_by("-created_at")
+            .first()
+        )
+
+    def get_interview(self):
+        """
+        This method is used to get the interview dates and times for the candidate for the mail templates
+        """
+        interviews = InterviewScheduleApplication.objects.filter(candidate_application_id=self.id)
+        if interviews:
+            interview_info = "<table>"
+            interview_info += "<tr><th>Sl No.</th><th>Date</th><th>Time</th><th>Is Completed</th></tr>"
+            for index, interview in enumerate(interviews, start=1):
+                interview_info += f"<tr><td>{index}</td>"
+                interview_info += (
+                    f"<td class='dateformat_changer'>{interview.interview_date}</td>"
+                )
+                interview_info += (
+                    f"<td class='timeformat_changer'>{interview.interview_time}</td>"
+                )
+                interview_info += (
+                    f"<td>{'Yes' if interview.completed else 'No'}</td></tr>"
+                )
+            interview_info += "</table>"
+            return interview_info
+        else:
+            return ""
+
+    def save(self, *args, **kwargs):
+        if self.stage_id is not None:
+            self.hired = self.stage_id.stage_type == "selected"
+
+        if not self.recruitment_id.is_event_based and self.job_position_id is None:
+            self.job_position_id = self.recruitment_id.job_position_id
+        if self.job_position_id not in self.recruitment_id.open_positions.all():
+            raise ValidationError({"job_position_id": _("Choose valid choice")})
+        if self.recruitment_id.is_event_based and self.job_position_id is None:
+            raise ValidationError({"job_position_id": _("This field is required.")})
+        if self.stage_id and self.stage_id.stage_type == "cancelled":
+            self.canceled = True
+        if self.canceled:
+            cancelled_stage = Stage.objects.filter(
+                recruitment_id=self.recruitment_id, stage_type="cancelled"
+            ).first()
+            if not cancelled_stage:
+                cancelled_stage = Stage.objects.create(
+                    recruitment_id=self.recruitment_id,
+                    stage="Cancelled Candidates",
+                    stage_type="cancelled",
+                    sequence=50,
+                )
+            self.stage_id = cancelled_stage
+        if (
+            self.converted_employee_id
+            and CandidateApplication.objects.filter(
+                converted_employee_id=self.converted_employee_id
+            )
+            .exclude(id=self.id)
+            .exists()
+        ):
+            raise ValidationError(_("Employee is unique for candidate application"))
+
+        if self.converted:
+            self.hired = False
+            self.canceled = False
+
+        super().save(*args, **kwargs)
+
+    class Meta:
+        """
+        Meta class to add the additional info
+        """
+        unique_together = (
+            "email",
+            "recruitment_id",
+        )
+        permissions = (
+            ("view_application_history", "View Application History"),
+            ("archive_candidate_application", "Archive Candidate Application"),
+        )
+        ordering = ["sequence"]
+        verbose_name = _("Candidate Application")
+        verbose_name_plural = _("Candidate Applications")
+
+
+class InterviewScheduleApplication(HorillaModel):
+    """
+    Interview Scheduling Model for CandidateApplication
+    """
+
+    candidate_application_id = models.ForeignKey(
+        CandidateApplication,
+        verbose_name=_("Candidate Application"),
+        related_name="candidate_application_interview",
+        on_delete=models.CASCADE,
+    )
+    employee_id = models.ManyToManyField(Employee, verbose_name=_("Interviewer"))
+    interview_date = models.DateField(verbose_name=_("Interview Date"))
+    interview_time = models.TimeField(verbose_name=_("Interview Time"))
+    description = models.TextField(
+        verbose_name=_("Description"), blank=True, max_length=255
+    )
+    completed = models.BooleanField(
+        default=False, verbose_name=_("Is Interview Completed")
+    )
+    objects = HorillaCompanyManager("candidate_application_id__recruitment_id__company_id")
+
+    def __str__(self) -> str:
+        return f"{self.candidate_application_id} - Interview."
+
+    class Meta:
+        verbose_name = _("Schedule Interview Application")
+        verbose_name_plural = _("Schedule Interview Applications")
+
+
+class StageNoteApplication(HorillaModel):
+    """
+    StageNote model for CandidateApplication
+    """
+
+    candidate_application_id = models.ForeignKey(CandidateApplication, on_delete=models.CASCADE)
+    description = models.TextField(verbose_name=_("Description"), max_length=255)
+    stage_id = models.ForeignKey(Stage, on_delete=models.CASCADE)
+    stage_files = models.ManyToManyField(StageFiles, blank=True)
+    updated_by = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, null=True, blank=True
+    )
+    candidate_can_view = models.BooleanField(default=False)
+    objects = HorillaCompanyManager(
+        related_company_field="candidate_application_id__recruitment_id__company_id"
+    )
+
+    def __str__(self) -> str:
+        return f"{self.description}"
+
+    def updated_user(self):
+        if self.updated_by:
+            return self.updated_by
+        else:
+            return self.candidate_application_id
+
+    class Meta:
+        verbose_name = _("Stage Note Application")
+        verbose_name_plural = _("Stage Notes Application")
+
+
+class RecruitmentSurveyAnswerApplication(HorillaModel):
+    """
+    RecruitmentSurveyAnswer for CandidateApplication
+    """
+
+    candidate_application_id = models.ForeignKey(CandidateApplication, on_delete=models.CASCADE)
+    recruitment_id = models.ForeignKey(
+        Recruitment,
+        on_delete=models.PROTECT,
+        verbose_name=_("Recruitment"),
+        null=True,
+    )
+    job_position_id = models.ForeignKey(
+        JobPosition,
+        on_delete=models.PROTECT,
+        verbose_name=_("Job Position"),
+        null=True,
+    )
+    answer_json = models.JSONField()
+    attachment = models.FileField(
+        upload_to="recruitment_attachment", null=True, blank=True
+    )
+    objects = HorillaCompanyManager(related_company_field="recruitment_id__company_id")
+
+    @property
+    def answer(self):
+        """
+        Used to convert the json to dict
+        """
+        try:
+            return json.loads(self.answer_json)
+        except json.JSONDecodeError:
+            return {}
+
+    def __str__(self) -> str:
+        return f"{self.candidate_application_id.name}-{self.recruitment_id}"
+
+    class Meta:
+        verbose_name = _("Survey Answer Application")
+        verbose_name_plural = _("Survey Answers Application")
+
+
+class CandidateWorkExperience(HorillaModel):
+    """
+    Model for candidate work experience entries
+    """
+    
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.CASCADE,
+        related_name='work_experiences',
+        verbose_name=_("Candidate")
+    )
+    
+    # Company Information
+    company_name = models.CharField(
+        max_length=200,
+        verbose_name=_("Company Name")
+    )
+    company_website = models.URLField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("Company Website")
+    )
+    company_location = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("Company Location")
+    )
+    
+    # Position Information
+    job_title = models.CharField(
+        max_length=200,
+        verbose_name=_("Job Title")
+    )
+    department = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name=_("Department")
+    )
+    
+    # Duration
+    start_date = models.DateField(verbose_name=_("Start Date"))
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("End Date")
+    )
+    is_current = models.BooleanField(
+        default=False,
+        verbose_name=_("Currently Working Here")
+    )
+    
+    # Description
+    job_description = models.TextField(
+        blank=True,
+        verbose_name=_("Job Description")
+    )
+    achievements = models.TextField(
+        blank=True,
+        verbose_name=_("Key Achievements")
+    )
+    
+    # Employment Type
+    employment_type_choices = [
+        ("full_time", _("Full Time")),
+        ("part_time", _("Part Time")),
+        ("contract", _("Contract")),
+        ("internship", _("Internship")),
+        ("freelance", _("Freelance")),
+    ]
+    employment_type = models.CharField(
+        max_length=20,
+        choices=employment_type_choices,
+        default="full_time",
+        verbose_name=_("Employment Type")
+    )
+    
+    # Salary Information (Optional)
+    salary = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("Salary")
+    )
+    currency = models.CharField(
+        max_length=3,
+        default="USD",
+        verbose_name=_("Currency")
+    )
+    
+    def __str__(self):
+        return f"{self.job_title} at {self.company_name}"
+    
+    class Meta:
+        ordering = ['-start_date']
+        verbose_name = _("Work Experience")
+        verbose_name_plural = _("Work Experiences")
+
+
+class CandidateWorkProject(HorillaModel):
+    """
+    Model for candidate work projects within work experience
+    """
+    
+    work_experience = models.ForeignKey(
+        CandidateWorkExperience,
+        on_delete=models.CASCADE,
+        related_name='projects',
+        verbose_name=_("Work Experience")
+    )
+    
+    project_name = models.CharField(
+        max_length=200,
+        verbose_name=_("Project Name")
+    )
+    project_description = models.TextField(
+        verbose_name=_("Project Description")
+    )
+    technologies_used = models.TextField(
+        blank=True,
+        verbose_name=_("Technologies Used")
+    )
+    project_url = models.URLField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("Project URL")
+    )
+    
+    # Project Duration
+    start_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Project Start Date")
+    )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Project End Date")
+    )
+    is_current = models.BooleanField(
+        default=False,
+        verbose_name=_("Currently Working on This Project")
+    )
+    
+    # Project Role
+    role = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name=_("Role in Project")
+    )
+    
+    def __str__(self):
+        return f"{self.project_name} - {self.work_experience.job_title}"
+    
+    class Meta:
+        ordering = ['-start_date']
+        verbose_name = _("Work Project")
+        verbose_name_plural = _("Work Projects")
+
+
+class CandidateEducation(HorillaModel):
+    """
+    Model for candidate education entries
+    """
+    
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.CASCADE,
+        related_name='education',
+        verbose_name=_("Candidate")
+    )
+    
+    # Institution Information
+    institution_name = models.CharField(
+        max_length=200,
+        verbose_name=_("Institution Name")
+    )
+    institution_location = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("Institution Location")
+    )
+    institution_website = models.URLField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("Institution Website")
+    )
+    
+    # Degree Information
+    degree_name = models.CharField(
+        max_length=200,
+        verbose_name=_("Degree Name")
+    )
+    field_of_study = models.CharField(
+        max_length=200,
+        verbose_name=_("Field of Study")
+    )
+    
+    # Dates
+    start_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Start Date")
+    )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("End Date")
+    )
+    graduation_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Graduation Date")
+    )
+    is_current = models.BooleanField(
+        default=False,
+        verbose_name=_("Currently Studying")
+    )
+    
+    # Academic Information
+    gpa = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("GPA")
+    )
+    max_gpa = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=4.00,
+        verbose_name=_("Maximum GPA")
+    )
+    
+    # Additional Information
+    honors = models.TextField(
+        blank=True,
+        verbose_name=_("Honors & Awards")
+    )
+    activities = models.TextField(
+        blank=True,
+        verbose_name=_("Activities & Societies")
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name=_("Description")
+    )
+    
+    def __str__(self):
+        return f"{self.degree_name} in {self.field_of_study} from {self.institution_name}"
+    
+    class Meta:
+        ordering = ['-graduation_date', '-end_date']
+        verbose_name = _("Education")
+        verbose_name_plural = _("Education")
+
+
+class CandidateCertification(HorillaModel):
+    """
+    Model for candidate certifications
+    """
+    
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.CASCADE,
+        related_name='certifications',
+        verbose_name=_("Candidate")
+    )
+    
+    # Certification Information
+    certification_name = models.CharField(
+        max_length=200,
+        verbose_name=_("Certification Name")
+    )
+    issuing_organization = models.CharField(
+        max_length=200,
+        verbose_name=_("Issuing Organization")
+    )
+    organization_website = models.URLField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("Organization Website")
+    )
+    
+    # Dates
+    issue_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Issue Date")
+    )
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Expiry Date")
+    )
+    is_current = models.BooleanField(
+        default=True,
+        verbose_name=_("Currently Valid")
+    )
+    
+    # Credential Information
+    credential_id = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name=_("Credential ID")
+    )
+    credential_url = models.URLField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("Credential URL")
+    )
+    
+    # Additional Information
+    description = models.TextField(
+        blank=True,
+        verbose_name=_("Description")
+    )
+    skills_covered = models.TextField(
+        blank=True,
+        verbose_name=_("Skills Covered")
+    )
+    
+    def __str__(self):
+        return f"{self.certification_name} from {self.issuing_organization}"
+    
+    class Meta:
+        ordering = ['-issue_date']
+        verbose_name = _("Certification")
+        verbose_name_plural = _("Certifications")
+
+
+class CandidateSkill(HorillaModel):
+    """
+    Model for candidate skills
+    """
+    
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.CASCADE,
+        related_name='skills',
+        verbose_name=_("Candidate")
+    )
+    
+    # Skill Information
+    skill_name = models.CharField(
+        max_length=100,
+        verbose_name=_("Skill Name")
+    )
+    
+    # Skill Categories
+    skill_category_choices = [
+        ("technical", _("Technical Skills")),
+        ("soft", _("Soft Skills")),
+        ("language", _("Languages")),
+        ("tool", _("Tools & Technologies")),
+        ("framework", _("Frameworks & Libraries")),
+        ("methodology", _("Methodologies")),
+        ("other", _("Other")),
+    ]
+    skill_category = models.CharField(
+        max_length=20,
+        choices=skill_category_choices,
+        default="technical",
+        verbose_name=_("Skill Category")
+    )
+    
+    # Proficiency Level
+    proficiency_choices = [
+        ("beginner", _("Beginner")),
+        ("intermediate", _("Intermediate")),
+        ("advanced", _("Advanced")),
+        ("expert", _("Expert")),
+    ]
+    proficiency_level = models.CharField(
+        max_length=20,
+        choices=proficiency_choices,
+        default="intermediate",
+        verbose_name=_("Proficiency Level")
+    )
+    
+    # Years of Experience
+    years_of_experience = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_("Years of Experience")
+    )
+    
+    # Additional Information
+    description = models.TextField(
+        blank=True,
+        verbose_name=_("Description")
+    )
+    is_highlighted = models.BooleanField(
+        default=False,
+        verbose_name=_("Highlighted Skill")
+    )
+    
+    def __str__(self):
+        return f"{self.skill_name} ({self.get_proficiency_level_display()})"
+    
+    class Meta:
+        ordering = ['skill_category', 'skill_name']
+        verbose_name = _("Skill")
+        verbose_name_plural = _("Skills")
+        unique_together = ['candidate', 'skill_name']
+
+
+class CandidateSkillRating(HorillaModel):
+    """
+    Model for candidate skill ratings
+    """
+    
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.CASCADE,
+        related_name='skill_ratings',
+        verbose_name=_("Candidate")
+    )
+    
+    # Recruitment context
+    recruitment = models.ForeignKey(
+        Recruitment,
+        on_delete=models.CASCADE,
+        related_name='skill_ratings',
+        verbose_name=_("Recruitment"),
+        null=True,
+        blank=True
+    )
+    
+    # Stage context
+    stage = models.ForeignKey(
+        Stage,
+        on_delete=models.CASCADE,
+        related_name='skill_ratings',
+        verbose_name=_("Stage"),
+        null=True,
+        blank=True
+    )
+    
+    # Skill Information
+    skill_name = models.CharField(
+        max_length=100,
+        verbose_name=_("Skill Name")
+    )
+    
+    # Skill Categories
+    skill_category_choices = [
+        ("technical", _("Technical Skills")),
+        ("non_technical", _("Non-Technical Skills")),
+    ]
+    skill_category = models.CharField(
+        max_length=20,
+        choices=skill_category_choices,
+        default="technical",
+        verbose_name=_("Skill Category")
+    )
+    
+    # Rating (0.0 to 5.0)
+    rating = models.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        validators=[
+            MinValueValidator(0.0),
+            MaxValueValidator(5.0)
+        ],
+        verbose_name=_("Rating (0.0 - 5.0)")
+    )
+    
+    # Notes
+    notes = models.TextField(
+        blank=True,
+        verbose_name=_("Notes")
+    )
+    
+    # Rated by
+    rated_by = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='skill_ratings_given',
+        verbose_name=_("Rated By")
+    )
+    
+    # Rating date
+    rated_on = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Rated On")
+    )
+    
+    def __str__(self):
+        context = []
+        if self.recruitment:
+            context.append(f"Rec: {self.recruitment.title}")
+        if self.stage:
+            context.append(f"Stage: {self.stage.stage}")
+        context_str = " | ".join(context) if context else "General"
+        return f"{self.candidate.name} - {self.skill_name}: {self.rating}/5.0 ({context_str})"
+    
+    class Meta:
+        ordering = ['-rated_on']
+        verbose_name = _("Skill Rating")
+        verbose_name_plural = _("Skill Ratings")
+        unique_together = ['candidate', 'skill_name', 'rated_by', 'recruitment', 'stage']

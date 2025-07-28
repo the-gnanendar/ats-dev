@@ -125,7 +125,7 @@
                     <div class="oh-profile oh-profile--lg me-3">
                         <div class="oh-profile__avatar">
                             <img src="{{candidate.get_avatar}}" class="oh-profile-section__avatar preview"
-                                alt="Username" style="border-radius:10%" onmouseover="showImage(this) $('#showImageContainer').addClass('enlarge-image-container'); " onmouseout="hideshowImage() $('#showImageContainer').removeClass('enlarge-image-container'); " />
+                                alt="Username" style="border-radius:10%" onmouseover="showImage(this); $('#showImageContainer').addClass('enlarge-image-container');" onmouseout="hideshowImage(); $('#showImageContainer').removeClass('enlarge-image-container');" />
                         </div>
                         <span class="oh-profile__active-badge oh-profile__active-badge--secondary"
                             title="Active"></span>
@@ -133,7 +133,7 @@
                     <div class="oh-profile__info-container">
                         <h1 class="oh-profile__info-name">{{candidate}}</h1>
                         <p class="oh-profile__info-designation">
-                            {{candidate.job_position_id}}
+                            {% trans "Candidate" %}
                         </p>
                     </div>
                 </div>
@@ -185,6 +185,24 @@
                         <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#resume">{% trans "Resume" %}</a>
                     </li>
                     <li class="oh-general__tab">
+                        <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#work-experience">{% trans "Work Experience" %}</a>
+                    </li>
+                    <li class="oh-general__tab">
+                        <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#education">{% trans "Education" %}</a>
+                    </li>
+                    <li class="oh-general__tab">
+                        <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#certifications">{% trans "Certifications" %}</a>
+                    </li>
+                    <li class="oh-general__tab">
+                        <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#skills">{% trans "Skills" %}</a>
+                    </li>
+                    <li class="oh-general__tab">
+                        <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#applications"
+                            hx-get="{% url 'candidate-applications' candidate.id %}" hx-target="#applications">
+                            {% trans "Job Applications" %}
+                        </a>
+                    </li>
+                    <li class="oh-general__tab">
                         <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#survey">{% trans "Survey" %}</a>
                     </li>
                     <li class="oh-general__tab">
@@ -199,12 +217,12 @@
                     <li class="oh-general__tab">
                         <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#document">{% trans "Documents" %}</a>
                     </li>
-                    {% if request.user|stage_manages:candidate.recruitment_id or perms.recruitment.view_candidate %}
+                    {% if perms.recruitment.view_candidate %}
                         <li class="oh-general__tab">
                             <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#rating">{% trans "Rating" %}</a>
                         </li>
                     {% endif %}
-                    {% if candidate.hired %}
+                    {% if candidate.converted %}
                         <li class="oh-general__tab">
                             <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#onboarding">{% trans "Onboarding" %}</a>
                         </li>
@@ -391,6 +409,26 @@
                 {% include "candidate/rating_tab.html" %}
             </div>
             <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="maillog">
+            </div>
+            <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="work-experience">
+                {% include "candidate/work_experience_tab.html" %}
+            </div>
+            <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="education">
+                {% include "candidate/education_tab.html" %}
+            </div>
+            <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="certifications">
+                {% include "candidate/certifications_tab.html" %}
+            </div>
+            <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="skills">
+                {% include "candidate/skills_tab.html" %}
+            </div>
+            <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="applications">
+                <!-- Job Applications tab content will be loaded via HTMX -->
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">{% trans "Loading..." %}</span>
+                    </div>
+                </div>
             </div>
             <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="resume">
                 {% if candidate.resume %}

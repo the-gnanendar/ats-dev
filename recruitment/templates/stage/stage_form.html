@@ -27,6 +27,10 @@
                         <li>{% trans "This field is requied" %}</li>
                     </ul>
                 </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6" id="stage_interviewer">
+                    <label class="oh-label" for="{{form.stage_interviewers.id_for_label}}">{{form.stage_interviewers.label}}</label>
+                    {{form.stage_interviewers}} {{form.stage_interviewers.errors}}
+                </div>
                 <div class="col-12 col-sm-12 col-md-12 col-lg-6">
                     <label class="oh-label" for="{{form.stage_type.id_for_label}}">{{form.stage_type.label}} *</label>
                     {{form.stage_type}} {{form.stage_type.errors}}

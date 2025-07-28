@@ -1,0 +1,53 @@
+{% extends 'index.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper mt-5" id="section">
+    <form method="post" class="oh-general__tab-target oh-profile-section mb-4">
+        {% csrf_token %}
+        <div class="oh-profile-section__card">
+            <div id="personalMessage">
+                {% if messages %}
+                <div class="oh-alert-container">
+                    {% for message in messages %}
+                    <div class="oh-alert oh-alert--animated {{message.tags}}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label required-star" for="{{form.candidates.id_for_label}}" 
+                               title="{{ form.candidates.help_text|safe }}">
+                            {{ form.candidates.label }}
+                        </label>
+                        {{ form.candidates }}
+                        {{ form.candidates.errors }}
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label required-star" for="{{form.recruitment.id_for_label}}" 
+                               title="{{ form.recruitment.help_text|safe }}">
+                            {{ form.recruitment.label }}
+                        </label>
+                        {{ form.recruitment }}
+                        {{ form.recruitment.errors }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="w-100 d-flex align-items-center justify-content-end">
+                <button type="submit" class="oh-btn oh-btn--secondary oh-btn--w-100-resp">
+                    {% trans "Create Applications" %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %} 

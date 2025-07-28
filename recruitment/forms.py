@@ -28,6 +28,7 @@ from datetime import date, datetime
 from typing import Any
 
 from django import forms
+from django.forms import inlineformset_factory
 from django.apps import apps
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.template.loader import render_to_string
@@ -49,19 +50,25 @@ from recruitment.models import (
     CandidateDocumentRequest,
     InterviewSchedule,
     JobPosition,
-    LinkedInAccount,
     Recruitment,
     RecruitmentSurvey,
     RejectedCandidate,
     RejectReason,
     Resume,
     Skill,
+    TechnicalSkill,
+    NonTechnicalSkill,
     SkillZone,
     SkillZoneCandidate,
     Stage,
     StageFiles,
     StageNote,
     SurveyTemplate,
+    CandidateApplication,
+    InterviewScheduleApplication,
+    StageNoteApplication,
+    CandidateWorkExperience, CandidateWorkProject, 
+    CandidateEducation, CandidateCertification, CandidateSkill, CandidateSkillRating, LinkedInAccount, Company
 )
 
 logger = logging.getLogger(__name__)
@@ -248,11 +255,14 @@ class RecruitmentCreationForm(BaseModelForm):
 
         model = Recruitment
         fields = "__all__"
-        exclude = ["is_active", "linkedin_post_id"]
+        exclude = ["is_active", "linkedin_post_id", "linkedin_account_id", "publish_in_linkedin"]
         widgets = {
             "start_date": forms.DateInput(attrs={"type": "date"}),
             "end_date": forms.DateInput(attrs={"type": "date"}),
-            "description": forms.Textarea(attrs={"data-summernote": ""}),
+            "application_deadline": forms.DateInput(attrs={"type": "date"}),
+            "job_summary": forms.Textarea(attrs={"data-summernote": "", "rows": 4}),
+            "key_responsibilities": forms.Textarea(attrs={"data-summernote": "", "rows": 6}),
+            "preferred_qualifications": forms.Textarea(attrs={"data-summernote": "", "rows": 4}),
         }
 
     def as_p(self, *args, **kwargs):
@@ -279,18 +289,70 @@ class RecruitmentCreationForm(BaseModelForm):
                 ),
                 label=f"{self._meta.model()._meta.get_field('recruitment_managers').verbose_name}",
             )
+            
+            # Default Stage Manager field
+            self.fields["default_stage_manager"] = HorillaMultiSelectField(
+                queryset=Employee.objects.filter(is_active=True),
+                widget=HorillaMultiSelectWidget(
+                    filter_route_name="employee-widget-filter",
+                    filter_class=EmployeeFilter,
+                    filter_instance_contex_name="f",
+                    filter_template_path="employee_filters.html",
+                    required=False,
+                ),
+                label=f"{self._meta.model()._meta.get_field('default_stage_manager').verbose_name}",
+            )
+            
+            # L1 Interviewer field
+            self.fields["l1_interviewer"] = HorillaMultiSelectField(
+                queryset=Employee.objects.filter(is_active=True),
+                widget=HorillaMultiSelectWidget(
+                    filter_route_name="employee-widget-filter",
+                    filter_class=EmployeeFilter,
+                    filter_instance_contex_name="f",
+                    filter_template_path="employee_filters.html",
+                    required=False,
+                ),
+                label=f"{self._meta.model()._meta.get_field('l1_interviewer').verbose_name}",
+            )
+            
+            # L2 Interviewer field
+            self.fields["l2_interviewer"] = HorillaMultiSelectField(
+                queryset=Employee.objects.filter(is_active=True),
+                widget=HorillaMultiSelectWidget(
+                    filter_route_name="employee-widget-filter",
+                    filter_class=EmployeeFilter,
+                    filter_instance_contex_name="f",
+                    filter_template_path="employee_filters.html",
+                    required=False,
+                ),
+                label=f"{self._meta.model()._meta.get_field('l2_interviewer').verbose_name}",
+            )
+            
+            # L3 Interviewer field
+            self.fields["l3_interviewer"] = HorillaMultiSelectField(
+                queryset=Employee.objects.filter(is_active=True),
+                widget=HorillaMultiSelectWidget(
+                    filter_route_name="employee-widget-filter",
+                    filter_class=EmployeeFilter,
+                    filter_instance_contex_name="f",
+                    filter_template_path="employee_filters.html",
+                    required=False,
+                ),
+                label=f"{self._meta.model()._meta.get_field('l3_interviewer').verbose_name}",
+            )
 
-        skill_choices = [("", _("---Choose Skills---"))] + list(
-            self.fields["skills"].queryset.values_list("id", "title")
+        technical_skill_choices = [("", _("---Choose Technical Skills---"))] + list(
+            self.fields["technical_skills"].queryset.values_list("id", "title")
         )
-        self.fields["skills"].choices = skill_choices
-        self.fields["skills"].choices += [("create", _("Create new skill "))]
-        self.fields["linkedin_account_id"].queryset = LinkedInAccount.objects.filter(
-            is_active=True
+        self.fields["technical_skills"].choices = technical_skill_choices
+        self.fields["technical_skills"].choices += [("create", _("Create new technical skill "))]
+        
+        non_technical_skill_choices = [("", _("---Choose Non-Technical Skills---"))] + list(
+            self.fields["non_technical_skills"].queryset.values_list("id", "title")
         )
-        self.fields["publish_in_linkedin"].widget.attrs.update(
-            {"onchange": "toggleLinkedIn()"}
-        )
+        self.fields["non_technical_skills"].choices = non_technical_skill_choices
+        self.fields["non_technical_skills"].choices += [("create", _("Create new non-technical skill "))]
 
     # def create_option(self, *args,**kwargs):
     #     option = super().create_option(*args,**kwargs)
@@ -305,23 +367,20 @@ class RecruitmentCreationForm(BaseModelForm):
             ids = self.data.getlist("recruitment_managers")
             if ids:
                 self.errors.pop("recruitment_managers", None)
+        
+        # Clean new fields
+        for field_name in ["default_stage_manager", "l1_interviewer", "l2_interviewer", "l3_interviewer"]:
+            if isinstance(self.fields.get(field_name), HorillaMultiSelectField):
+                ids = self.data.getlist(field_name)
+                if ids:
+                    self.errors.pop(field_name, None)
         open_positions = self.cleaned_data.get("open_positions")
         is_published = self.cleaned_data.get("is_published")
         if is_published and not open_positions:
             raise forms.ValidationError(
                 _("Job position is required if the recruitment is publishing.")
             )
-        if (
-            self.cleaned_data.get("publish_in_linkedin")
-            and not self.cleaned_data["linkedin_account_id"]
-        ):
-            raise forms.ValidationError(
-                {
-                    "linkedin_account_id": _(
-                        "LinkedIn account is required for publishing."
-                    )
-                }
-            )
+
         super().clean()
 
 
@@ -357,21 +416,35 @@ class StageCreationForm(BaseModelForm):
                 ),
                 label=f"{self._meta.model()._meta.get_field('stage_managers').verbose_name}",
             )
+            self.fields["stage_interviewers"] = HorillaMultiSelectField(
+                queryset=Employee.objects.filter(is_active=True),
+                widget=HorillaMultiSelectWidget(
+                    filter_route_name="employee-widget-filter",
+                    filter_class=EmployeeFilter,
+                    filter_instance_contex_name="f",
+                    filter_template_path="employee_filters.html",
+                    required=False,
+                ),
+                label=f"{self._meta.model()._meta.get_field('stage_interviewers').verbose_name}",
+            )
 
     def clean(self):
         if isinstance(self.fields["stage_managers"], HorillaMultiSelectField):
             ids = self.data.getlist("stage_managers")
             if ids:
                 self.errors.pop("stage_managers", None)
+        if isinstance(self.fields["stage_interviewers"], HorillaMultiSelectField):
+            ids = self.data.getlist("stage_interviewers")
+            if ids:
+                self.errors.pop("stage_interviewers", None)
         super().clean()
 
 
 class CandidateCreationForm(BaseModelForm):
     """
-    Form for Candidate model
+    Form for Candidate model - recruitment-agnostic candidate profile
+    Now includes comprehensive fields for work experience, education, skills, and certifications
     """
-
-    load = forms.CharField(widget=widgets.RecruitmentAjaxWidget, required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -379,15 +452,21 @@ class CandidateCreationForm(BaseModelForm):
         self.fields["profile"].widget.attrs["accept"] = ".jpg, .jpeg, .png"
         self.fields["profile"].required = False
         self.fields["resume"].widget.attrs["accept"] = ".pdf"
-        self.fields["resume"].required = False
-        if self.instance.recruitment_id is not None:
-            if self.instance is not None:
-                self.fields["job_position_id"] = forms.ModelChoiceField(
-                    queryset=self.instance.recruitment_id.open_positions.all(),
-                    label="Job Position",
-                )
-        self.fields["recruitment_id"].widget.attrs = {"data-widget": "ajax-widget"}
-        self.fields["job_position_id"].widget.attrs = {"data-widget": "ajax-widget"}
+        self.fields["resume"].required = True
+        
+        # Make only name, email, and resume mandatory
+        self.fields["name"].required = True
+        self.fields["email"].required = True
+        self.fields["resume"].required = True
+        
+        # Make all other fields optional
+        optional_fields = [
+            "profile", "portfolio", "mobile", "dob", "gender", "address", 
+            "source", "country", "state", "city", "zip", "referral", "is_active"
+        ]
+        for field_name in optional_fields:
+            if field_name in self.fields:
+                self.fields[field_name].required = False
 
     class Meta:
         """
@@ -401,42 +480,40 @@ class CandidateCreationForm(BaseModelForm):
             "portfolio",
             "email",
             "mobile",
-            "recruitment_id",
-            "job_position_id",
             "dob",
             "gender",
             "address",
             "source",
             "country",
             "state",
+            "city",
             "zip",
             "resume",
             "referral",
-            "canceled",
             "is_active",
         ]
 
         widgets = {
-            "scheduled_date": forms.DateInput(attrs={"type": "date"}),
+            "profile": forms.FileInput(attrs={"accept": "image/*"}),
+            "name": forms.TextInput(),
+            "portfolio": forms.URLInput(),
+            "email": forms.EmailInput(),
+            "mobile": forms.TextInput(),
             "dob": forms.DateInput(attrs={"type": "date"}),
+            "gender": forms.Select(),
+            "address": forms.Textarea(attrs={"rows": 3}),
+            "source": forms.Select(),
+            "country": forms.Select(),
+            "state": forms.Select(),
+            "city": forms.TextInput(),
+            "zip": forms.TextInput(),
+            "resume": forms.FileInput(attrs={"accept": ".pdf,.doc,.docx"}),
+            "referral": forms.Select(),
+            "is_active": forms.CheckboxInput(),
         }
 
-    def save(self, commit: bool = ...):
-        candidate = self.instance
-        recruitment = candidate.recruitment_id
-        stage = candidate.stage_id
-        candidate.hired = False
-        candidate.start_onboard = False
-        if stage is not None:
-            if stage.stage_type == "hired" and candidate.canceled is False:
-                candidate.hired = True
-                candidate.start_onboard = True
-        candidate.recruitment_id = recruitment
-        candidate.stage_id = stage
-        job_id = self.data.get("job_position_id")
-        if job_id:
-            job_position = JobPosition.objects.get(id=job_id)
-            self.instance.job_position_id = job_position
+    def save(self, commit: bool = True):
+        # Simple save for candidate profile
         return super().save(commit)
 
     def as_p(self, *args, **kwargs):
@@ -451,25 +528,17 @@ class CandidateCreationForm(BaseModelForm):
 
     def clean(self):
         errors = {}
-        profile = self.cleaned_data["profile"]
-        resume = self.cleaned_data["resume"]
-        recruitment: Recruitment = self.cleaned_data["recruitment_id"]
-        if not resume and not recruitment.optional_resume:
-            errors["resume"] = _("This field is required")
-        if not profile and not recruitment.optional_profile_image:
-            errors["profile"] = _("This field is required")
-        if self.instance.name is not None:
-            self.errors.pop("job_position_id", None)
-            if (
-                self.instance.job_position_id is None
-                or self.data.get("job_position_id") == ""
-            ):
-                errors["job_position_id"] = _("This field is required")
-            if (
-                self.instance.job_position_id
-                not in self.instance.recruitment_id.open_positions.all()
-            ):
-                errors["job_position_id"] = _("Choose valid choice")
+        name = self.cleaned_data.get("name")
+        email = self.cleaned_data.get("email")
+        resume = self.cleaned_data.get("resume")
+        
+        if not name:
+            errors["name"] = _("Name is required")
+        if not email:
+            errors["email"] = _("Email is required")
+        if not resume:
+            errors["resume"] = _("Resume is required")
+            
         if errors:
             raise ValidationError(errors)
         return super().clean()
@@ -572,13 +641,17 @@ class RecruitmentDropDownForm(DropDownForm):
         """
 
         fields = "__all__"
+        exclude = ["is_active", "linkedin_post_id", "linkedin_account_id", "publish_in_linkedin"]
         model = Recruitment
         widgets = {
             "start_date": forms.DateInput(attrs={"type": "date"}),
             "end_date": forms.DateInput(attrs={"type": "date"}),
-            "description": forms.Textarea(attrs={"data-summernote": ""}),
+            "application_deadline": forms.DateInput(attrs={"type": "date"}),
+            "job_summary": forms.Textarea(attrs={"data-summernote": "", "rows": 4}),
+            "key_responsibilities": forms.Textarea(attrs={"data-summernote": "", "rows": 6}),
+            "preferred_qualifications": forms.Textarea(attrs={"data-summernote": "", "rows": 4}),
         }
-        labels = {"description": _("Description"), "vacancy": _("Vacancy")}
+        labels = {"vacancy": _("Vacancy")}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -590,7 +663,8 @@ class RecruitmentDropDownForm(DropDownForm):
 
 class AddCandidateForm(ModelForm):
     """
-    Form for Candidate model
+    Form for Candidate model - simple candidate profile creation
+    Note: This form is deprecated. Use CandidateApplication for recruitment-specific operations.
     """
 
     verbose_name = "Add Candidate"
@@ -608,29 +682,15 @@ class AddCandidateForm(ModelForm):
             "email",
             "mobile",
             "gender",
-            "stage_id",
-            "job_position_id",
         ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        initial = kwargs["initial"].get("stage_id")
-        if initial:
-            recruitment = Stage.objects.get(id=initial).recruitment_id
-            self.instance.recruitment_id = recruitment
-            self.fields["stage_id"].queryset = self.fields["stage_id"].queryset.filter(
-                recruitment_id=recruitment
-            )
-            self.fields["job_position_id"].queryset = recruitment.open_positions
         self.fields["profile"].widget.attrs["accept"] = ".jpg, .jpeg, .png"
         self.fields["resume"].widget.attrs["accept"] = ".pdf"
-        if recruitment.optional_profile_image:
-            self.fields["profile"].required = False
-        if recruitment.optional_resume:
-            self.fields["resume"].required = False
+        self.fields["profile"].required = False
+        self.fields["resume"].required = False
         self.fields["gender"].empty_label = None
-        self.fields["job_position_id"].empty_label = None
-        self.fields["stage_id"].empty_label = None
 
     def as_p(self, *args, **kwargs):
         """
@@ -952,10 +1012,8 @@ class AddQuestionForm(Form):
 exclude_fields = [
     "id",
     "profile",
-    "portfolio",
+    "portfolio", 
     "resume",
-    "sequence",
-    "schedule_date",
     "created_at",
     "created_by",
     "modified_by",
@@ -972,21 +1030,18 @@ class CandidateExportForm(forms.Form):
         for field in model_fields
         if hasattr(field, "verbose_name") and field.name not in exclude_fields
     ]
-    field_choices = field_choices + [
-        ("rejected_candidate__description", "Rejected Description"),
-    ]
     selected_fields = forms.MultipleChoiceField(
         choices=field_choices,
         widget=forms.CheckboxSelectMultiple,
         initial=[
             "name",
-            "recruitment_id",
-            "job_position_id",
-            "stage_id",
             "email",
             "mobile",
-            "hired",
-            "joining_date",
+            "gender",
+            "source",
+            "country",
+            "state",
+            "city",
         ],
     )
 
@@ -1249,6 +1304,18 @@ class SkillsForm(ModelForm):
         fields = ["title"]
 
 
+class TechnicalSkillForm(ModelForm):
+    class Meta:
+        model = TechnicalSkill
+        fields = ["title"]
+
+
+class NonTechnicalSkillForm(ModelForm):
+    class Meta:
+        model = NonTechnicalSkill
+        fields = ["title"]
+
+
 class ResumeForm(ModelForm):
     class Meta:
         model = Resume
@@ -1316,17 +1383,790 @@ class CandidateDocumentForm(ModelForm):
         return table_html
 
 
+# CandidateApplication Forms
+
+class CandidateApplicationCreationForm(BaseModelForm):
+    """
+    Form for creating CandidateApplication instances
+    """
+    verbose_name = "Candidate Application"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["recruitment_id"].empty_label = None
+        if instance := kwargs.get("instance"):
+            self.verbose_name = instance.name
+
+    def save(self, commit: bool = True):
+        candidate_app = self.instance
+        recruitment = candidate_app.recruitment_id
+        stage = candidate_app.stage_id
+        candidate_app.hired = False
+        candidate_app.start_onboard = False
+        if stage is not None:
+            if stage.stage_type == "selected" and candidate_app.canceled is False:
+                candidate_app.hired = True
+                candidate_app.start_onboard = True
+        candidate_app.recruitment_id = recruitment
+        candidate_app.stage_id = stage
+        job_id = self.data.get("job_position_id")
+        if job_id:
+            job_position = JobPosition.objects.get(id=job_id)
+            self.instance.job_position_id = job_position
+        return super().save(commit)
+
+    def as_p(self, *args, **kwargs):
+        """
+        Render the form fields as HTML table rows with Bootstrap styling.
+        """
+        context = {"form": self}
+        table_html = render_to_string(
+            "candidate_application/candidate_application_create_form_as_p.html", context
+        )
+        return table_html
+
+    class Meta:
+        model = CandidateApplication
+        fields = "__all__"
+        exclude = [
+            "is_active",
+            "sequence",
+            "hired_date",
+            "probation_end",
+            "offer_letter_status",
+            "converted",
+            "start_onboard",
+            "hired",
+            "canceled",
+            "converted_employee_id",
+            "last_updated",
+        ]
+        widgets = {
+            "dob": forms.DateInput(attrs={"type": "date"}),
+            "joining_date": forms.DateInput(attrs={"type": "date"}),
+            "schedule_date": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        }
+
+
+class SimpleCandidateApplicationForm(forms.Form):
+    """
+    Simplified form for creating candidate applications with only two fields:
+    1. Candidate multi-select (from existing candidates)
+    2. Recruitment single-select
+    """
+    verbose_name = "Create Candidate Application"
+    
+    candidates = forms.ModelMultipleChoiceField(
+        queryset=Candidate.objects.filter(is_active=True),
+        widget=HorillaMultiSelectWidget(
+            filter_route_name="candidate-filter",
+            filter_class=None,
+            filter_instance_contex_name="f",
+            filter_context_name="candidate_filter",
+        ),
+        label=_("Select Candidates"),
+        help_text=_("Choose one or more candidates to create applications for")
+    )
+    
+    recruitment = forms.ModelChoiceField(
+        queryset=Recruitment.objects.filter(is_active=True, closed=False),
+        empty_label=_("Select a recruitment"),
+        label=_("Recruitment"),
+        help_text=_("Choose the recruitment to apply candidates to")
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set up the recruitment field to show only active recruitments
+        self.fields['recruitment'].queryset = Recruitment.objects.filter(
+            is_active=True, 
+            closed=False
+        ).order_by('title')
+        
+        # Set up the candidates field to show only active candidates
+        self.fields['candidates'].queryset = Candidate.objects.filter(
+            is_active=True
+        ).order_by('name')
+        
+        # Apply consistent styling
+        for field_name, field in self.fields.items():
+            if isinstance(field.widget, (forms.Select,)):
+                field.widget.attrs.update({
+                    "class": "oh-select oh-select-2 select2-hidden-accessible",
+                })
+            elif isinstance(field.widget, (forms.TextInput, forms.EmailInput, forms.NumberInput)):
+                field.widget.attrs.update({
+                    "class": "oh-input w-100",
+                    "placeholder": field.label,
+                })
+    
+    def save(self):
+        """
+        Create CandidateApplication instances for each selected candidate
+        """
+        candidates = self.cleaned_data['candidates']
+        recruitment = self.cleaned_data['recruitment']
+        
+        created_applications = []
+        
+        for candidate in candidates:
+            # Check if application already exists for this candidate and recruitment
+            existing_app = CandidateApplication.objects.filter(
+                candidate_id=candidate,
+                recruitment_id=recruitment
+            ).first()
+            
+            if not existing_app:
+                # Get the first stage of the recruitment
+                first_stage = recruitment.stage_set.filter(is_active=True).order_by('sequence').first()
+                
+                # Create the application
+                application = CandidateApplication.objects.create(
+                    candidate_id=candidate,
+                    recruitment_id=recruitment,
+                    stage_id=first_stage,
+                    name=candidate.name,
+                    email=candidate.email,
+                    mobile=candidate.mobile,
+                    profile=candidate.profile,
+                    resume=candidate.resume,
+                    portfolio=candidate.portfolio,
+                    address=candidate.address,
+                    country=candidate.country,
+                    state=candidate.state,
+                    city=candidate.city,
+                    zip=candidate.zip,
+                    gender=candidate.gender,
+                    dob=candidate.dob,
+                    source="software",
+                    is_active=True
+                )
+                created_applications.append(application)
+        
+        return created_applications
+
+
+class CandidateApplicationDropDownForm(BaseModelForm):
+    """
+    Form for CandidateApplication dropdown functionality
+    """
+    
+    class Meta:
+        model = CandidateApplication
+        fields = [
+            "name",
+            "email",
+            "mobile",
+            "recruitment_id",
+            "stage_id",
+            "resume",
+            "job_position_id",
+        ]
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["recruitment_id"].empty_label = None
+
+
+class StageNoteApplicationForm(ModelForm):
+    """
+    Form for creating StageNoteApplication instances
+    """
+    verbose_name = "Stage Note Application"
+    
+    class Meta:
+        model = StageNoteApplication
+        fields = "__all__"
+        exclude = ["is_active", "updated_by", "stage_id", "candidate_application_id"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 4})}
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+    def save(self, commit=True):
+        files = []
+        for key, file in self.files.items():
+            if key.startswith("attachment"):
+                stage_file = StageFiles()
+                stage_file.files = file
+                stage_file.save()
+                files.append(stage_file.id)
+        
+        note = super().save(commit=False)
+        if commit:
+            note.save()
+        return note, files
+
+
+class InterviewScheduleApplicationForm(ModelForm):
+    """
+    Form for creating InterviewScheduleApplication instances
+    """
+    verbose_name = "Interview Schedule Application"
+    
+    class Meta:
+        model = InterviewScheduleApplication
+        fields = "__all__"
+        exclude = ["is_active", "candidate_application_id"]
+        widgets = {
+            "interview_date": forms.DateInput(attrs={"type": "date"}),
+            "interview_time": forms.TimeInput(attrs={"type": "time"}),
+            "description": forms.Textarea(attrs={"rows": 3}),
+        }
+
+
+class ApplicationForm(ModelForm):
+    """
+    Application form for candidates to apply through CandidateApplication
+    """
+    def __init__(self, recruitment=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if recruitment:
+            self.instance.recruitment_id = recruitment
+            # Set stage to sourced stage
+            sourced_stage = Stage.objects.filter(
+                recruitment_id=recruitment, stage_type="sourced"
+            ).first()
+            if sourced_stage:
+                self.instance.stage_id = sourced_stage
+
+    class Meta:
+        model = CandidateApplication
+        fields = [
+            "name",
+            "email", 
+            "mobile",
+            "resume",
+            "portfolio",
+            "address",
+            "country",
+            "state",
+            "city",
+            "zip",
+            "gender",
+            "dob",
+            "profile"
+        ]
+        widgets = {
+            "dob": forms.DateInput(attrs={"type": "date"}),
+            "gender": forms.Select(),
+            "address": forms.Textarea(attrs={"rows": 3}),
+        }
+
+
+class CandidateApplicationUpdateForm(BaseModelForm):
+    """
+    Form for updating CandidateApplication instances
+    """
+    verbose_name = "Update Candidate Application"
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Apply consistent styling
+        for field_name, field in self.fields.items():
+            widget = field.widget
+            if isinstance(widget, (forms.DateInput)):
+                field.initial = date.today()
+
+            if isinstance(
+                widget,
+                (forms.NumberInput, forms.EmailInput, forms.TextInput, forms.FileInput),
+            ):
+                label = _(field.label)
+                field.widget.attrs.update(
+                    {"class": "oh-input w-100", "placeholder": label}
+                )
+            elif isinstance(widget, (forms.Select,)):
+                label = ""
+                if field.label is not None:
+                    label = _(field.label)
+                field.empty_label = _(f"---Choose {label}---")
+                field.widget.attrs.update(
+                    {"class": "oh-select oh-select-2 select2-hidden-accessible"}
+                )
+            elif isinstance(widget, (forms.Textarea)):
+                if field.label is not None:
+                    label = _(field.label)
+                field.widget.attrs.update(
+                    {
+                        "class": "oh-input w-100",
+                        "placeholder": label,
+                        "rows": 2,
+                        "cols": 40,
+                    }
+                )
+
+    class Meta:
+        model = CandidateApplication
+        fields = "__all__"
+        exclude = [
+            "is_active",
+            "sequence", 
+            "hired_date",
+            "probation_end",
+            "offer_letter_status",
+            "last_updated",
+        ]
+        widgets = {
+            "dob": forms.DateInput(attrs={"type": "date"}),
+            "joining_date": forms.DateInput(attrs={"type": "date"}),
+            "schedule_date": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        }
+
+
+class CandidateApplicationStageUpdateForm(ModelForm):
+    """
+    Form for updating stage of CandidateApplication
+    """
+    
+    class Meta:
+        model = CandidateApplication
+        fields = ["stage_id", "schedule_date"]
+        widgets = {
+            "schedule_date": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if instance := kwargs.get("instance"):
+            # Filter stages to current recruitment only
+            self.fields["stage_id"].queryset = Stage.objects.filter(
+                recruitment_id=instance.recruitment_id
+            )
+
+
+class ToSkillZoneApplicationForm(forms.Form):
+    """
+    Form to add CandidateApplication to skill zones
+    """
+    skill_zone_ids = forms.ModelMultipleChoiceField(
+        queryset=SkillZone.objects.filter(is_active=True),
+        widget=HorillaMultiSelectWidget(
+            filter_route_name="skill-zone-filter",
+            filter_class=None,
+            filter_instance_contex_name="f",
+            filter_context_name="skill_zone_filter",
+        ),
+        label=_("Skill Zone"),
+    )
+    reason = forms.CharField(
+        max_length=200,
+        widget=forms.Textarea(attrs={"rows": 3}),
+        label=_("Reason")
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+# Document Management Forms for CandidateApplication
+
+class CandidateApplicationDocumentForm(ModelForm):
+    """
+    Form for CandidateApplication document management
+    """
+    
+    class Meta:
+        model = CandidateDocument  # Reusing existing model but will link to CandidateApplication
+        fields = ["title", "document", "status", "reject_reason"]
+        widgets = {
+            "reject_reason": forms.Textarea(attrs={"rows": 3}),
+        }
+
+
+class CandidateApplicationDocumentUpdateForm(ModelForm):
+    """
+    Form for updating CandidateApplication documents
+    """
+    
+    class Meta:
+        model = CandidateDocument
+        fields = ["document"]
+
+
+class CandidateApplicationConversionForm(forms.Form):
+    """
+    Form for converting CandidateApplication to Employee
+    """
+    confirm_conversion = forms.BooleanField(
+        required=True,
+        label=_("I confirm this candidate application should be converted to an employee")
+    )
+    
+    def __init__(self, candidate_application=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.candidate_application = candidate_application
+
+
+class CandidateWorkExperienceForm(BaseModelForm):
+    """
+    Form for candidate work experience
+    """
+    
+    class Meta:
+        model = CandidateWorkExperience
+        fields = [
+            'company_name', 'company_website', 'company_location',
+            'job_title', 'department', 'start_date', 'end_date',
+            'is_current', 'job_description', 'achievements',
+            'employment_type', 'salary', 'currency'
+        ]
+        widgets = {
+            'company_name': forms.TextInput(),
+            'company_website': forms.URLInput(),
+            'company_location': forms.TextInput(),
+            'job_title': forms.TextInput(),
+            'department': forms.TextInput(),
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+            'is_current': forms.CheckboxInput(),
+            'job_description': forms.Textarea(attrs={'rows': 4}),
+            'achievements': forms.Textarea(attrs={'rows': 4}),
+            'employment_type': forms.Select(),
+            'salary': forms.NumberInput(),
+            'currency': forms.TextInput(),
+        }
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+        is_current = cleaned_data.get('is_current')
+        
+        if not is_current and start_date and end_date and start_date > end_date:
+            raise forms.ValidationError(_("Start date cannot be after end date."))
+        
+        return cleaned_data
+
+
+class CandidateWorkProjectForm(BaseModelForm):
+    """
+    Form for candidate work projects
+    """
+    
+    class Meta:
+        model = CandidateWorkProject
+        fields = [
+            'project_name', 'project_description', 'technologies_used',
+            'project_url', 'start_date', 'end_date', 'is_current', 'role'
+        ]
+        widgets = {
+            'project_name': forms.TextInput(),
+            'project_description': forms.Textarea(attrs={'rows': 4}),
+            'technologies_used': forms.Textarea(attrs={'rows': 3}),
+            'project_url': forms.URLInput(),
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+            'is_current': forms.CheckboxInput(),
+            'role': forms.TextInput(),
+        }
+
+
+class CandidateEducationForm(BaseModelForm):
+    """
+    Form for candidate education
+    """
+    
+    class Meta:
+        model = CandidateEducation
+        fields = [
+            'institution_name', 'institution_location', 'institution_website',
+            'degree_name', 'field_of_study', 'start_date', 'end_date',
+            'graduation_date', 'is_current', 'gpa', 'max_gpa',
+            'honors', 'activities', 'description'
+        ]
+        widgets = {
+            'institution_name': forms.TextInput(),
+            'institution_location': forms.TextInput(),
+            'institution_website': forms.URLInput(),
+            'degree_name': forms.TextInput(),
+            'field_of_study': forms.TextInput(),
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+            'graduation_date': forms.DateInput(attrs={'type': 'date'}),
+            'is_current': forms.CheckboxInput(),
+            'gpa': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '4'}),
+            'max_gpa': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '4'}),
+            'honors': forms.Textarea(attrs={'rows': 3}),
+            'activities': forms.Textarea(attrs={'rows': 3}),
+            'description': forms.Textarea(attrs={'rows': 4}),
+        }
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        gpa = cleaned_data.get('gpa')
+        max_gpa = cleaned_data.get('max_gpa')
+        
+        if gpa and max_gpa and gpa > max_gpa:
+            raise forms.ValidationError(_("GPA cannot be higher than maximum GPA."))
+        
+        return cleaned_data
+
+
+class CandidateCertificationForm(BaseModelForm):
+    """
+    Form for candidate certifications
+    """
+    
+    class Meta:
+        model = CandidateCertification
+        fields = [
+            'certification_name', 'issuing_organization', 'organization_website',
+            'issue_date', 'expiry_date', 'is_current', 'credential_id',
+            'credential_url', 'description', 'skills_covered'
+        ]
+        widgets = {
+            'certification_name': forms.TextInput(),
+            'issuing_organization': forms.TextInput(),
+            'organization_website': forms.URLInput(),
+            'issue_date': forms.DateInput(attrs={'type': 'date'}),
+            'expiry_date': forms.DateInput(attrs={'type': 'date'}),
+            'is_current': forms.CheckboxInput(),
+            'credential_id': forms.TextInput(),
+            'credential_url': forms.URLInput(),
+            'description': forms.Textarea(attrs={'rows': 4}),
+            'skills_covered': forms.Textarea(attrs={'rows': 3}),
+        }
+
+
+class CandidateSkillForm(BaseModelForm):
+    """
+    Form for candidate skills
+    """
+    verbose_name = _("Candidate Skill")
+    
+    # Add relevant years of experience field
+    relevant_years_of_experience = forms.IntegerField(
+        required=False,
+        min_value=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('Relevant years of experience')
+        }),
+        label=_("Relevant Years of Experience")
+    )
+    
+    class Meta:
+        model = CandidateSkill
+        fields = [
+            'skill_name', 'proficiency_level', 'years_of_experience'
+        ]
+        widgets = {
+            'skill_name': forms.TextInput(),
+            'proficiency_level': forms.Select(),
+            'years_of_experience': forms.NumberInput(attrs={'min': '0'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['skill_name'].widget.attrs.update({'placeholder': _('Enter skill name')})
+        
+        # Ensure proficiency_level choices are properly set
+        self.fields['proficiency_level'].choices = [
+            ("beginner", _("Beginner")),
+            ("intermediate", _("Intermediate")),
+            ("advanced", _("Advanced")),
+            ("expert", _("Expert")),
+        ]
+        
+        # Load relevant years from description if editing
+        if self.instance and self.instance.pk and self.instance.description:
+            import re
+            match = re.search(r'Relevant years: (\d+)', self.instance.description)
+            if match:
+                self.fields['relevant_years_of_experience'].initial = int(match.group(1))
+    
+    def as_p(self, *args, **kwargs):
+        """
+        Render the form fields as HTML table rows with Bootstrap styling.
+        """
+        context = {"form": self}
+        table_html = render_to_string("common_form.html", context)
+        return table_html
+    
+    def save(self, commit=True):
+        """
+        Save the form and handle the custom relevant_years_of_experience field
+        """
+        instance = super().save(commit=False)
+        
+        # Store relevant years of experience in the description field
+        relevant_years = self.cleaned_data.get('relevant_years_of_experience')
+        if relevant_years is not None:
+            instance.description = f"Relevant years: {relevant_years}"
+        
+        if commit:
+            instance.save()
+        return instance
+
+
+class CandidateSkillRatingForm(BaseModelForm):
+    """
+    Form for candidate skill ratings
+    """
+    verbose_name = _("Skill Rating")
+    
+    class Meta:
+        model = CandidateSkillRating
+        fields = [
+            'recruitment', 'stage', 'skill_name', 'skill_category', 'rating', 'notes'
+        ]
+        widgets = {
+            'recruitment': forms.Select(attrs={'class': 'form-control'}),
+            'stage': forms.Select(attrs={'class': 'form-control'}),
+            'skill_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'skill_category': forms.Select(attrs={'class': 'form-control'}),
+            'rating': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0.0',
+                'max': '5.0',
+                'step': '0.1',
+                'placeholder': '0.0 - 5.0'
+            }),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['skill_name'].widget.attrs.update({'placeholder': _('Enter skill name')})
+        self.fields['notes'].widget.attrs.update({'placeholder': _('Add notes about the rating')})
+        
+        # Make recruitment and stage required only if not provided in initial data
+        if not self.initial.get('recruitment'):
+            self.fields['recruitment'].required = True
+        else:
+            self.fields['recruitment'].required = False
+            self.fields['recruitment'].widget = forms.HiddenInput()
+            
+        if not self.initial.get('stage'):
+            self.fields['stage'].required = True
+        else:
+            self.fields['stage'].required = False
+            self.fields['stage'].widget = forms.HiddenInput()
+    
+    def clean_rating(self):
+        rating = self.cleaned_data.get('rating')
+        if rating is not None:
+            if rating < 0.0 or rating > 5.0:
+                raise ValidationError(_("Rating must be between 0.0 and 5.0"))
+        return rating
+    
+    def as_p(self, *args, **kwargs):
+        """
+        Render the form fields as HTML table rows with Bootstrap styling.
+        """
+        context = {"form": self}
+        table_html = render_to_string("common_form.html", context)
+        return table_html
+
+
+# Inline FormSets for Dynamic Addition/Deletion
+CandidateWorkExperienceFormSet = inlineformset_factory(
+    Candidate,
+    CandidateWorkExperience,
+    form=CandidateWorkExperienceForm,
+    extra=1,
+    can_delete=True,
+    fields=[
+        'company_name', 'company_website', 'company_location',
+        'job_title', 'department', 'start_date', 'end_date',
+        'is_current', 'job_description', 'achievements',
+        'employment_type', 'salary', 'currency'
+    ]
+)
+
+CandidateWorkProjectFormSet = inlineformset_factory(
+    CandidateWorkExperience,
+    CandidateWorkProject,
+    form=CandidateWorkProjectForm,
+    extra=1,
+    can_delete=True,
+    fields=[
+        'project_name', 'project_description', 'technologies_used',
+        'project_url', 'start_date', 'end_date', 'is_current', 'role'
+    ]
+)
+
+CandidateEducationFormSet = inlineformset_factory(
+    Candidate,
+    CandidateEducation,
+    form=CandidateEducationForm,
+    extra=1,
+    can_delete=True,
+    fields=[
+        'institution_name', 'institution_location', 'institution_website',
+        'degree_name', 'field_of_study', 'start_date', 'end_date',
+        'graduation_date', 'is_current', 'gpa', 'max_gpa',
+        'honors', 'activities', 'description'
+    ]
+)
+
+CandidateCertificationFormSet = inlineformset_factory(
+    Candidate,
+    CandidateCertification,
+    form=CandidateCertificationForm,
+    extra=1,
+    can_delete=True,
+    fields=[
+        'certification_name', 'issuing_organization', 'organization_website',
+        'issue_date', 'expiry_date', 'is_current', 'credential_id',
+        'credential_url', 'description', 'skills_covered'
+    ]
+)
+
+CandidateSkillFormSet = inlineformset_factory(
+    Candidate,
+    CandidateSkill,
+    form=CandidateSkillForm,
+    extra=1,
+    can_delete=True,
+    fields=[
+        'skill_name', 'proficiency_level', 'years_of_experience'
+    ]
+)
+
+
+
+
+
 class LinkedInAccountForm(BaseModelForm):
     """
-    LinkedInAccount form
+    Form for LinkedIn Account model
     """
+    verbose_name = _("LinkedIn Account")
 
     class Meta:
         model = LinkedInAccount
         fields = [
-            "username",
-            "email",
-            "api_token",
-            "is_active",
-            "company_id",
+            'username', 'email', 'api_token', 'company_id'
         ]
+        widgets = {
+            'username': forms.TextInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('LinkedIn Username')
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('LinkedIn Email')
+            }),
+            'api_token': forms.TextInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('LinkedIn API Token'),
+                'type': 'password'
+            }),
+            'company_id': forms.Select(attrs={
+                'class': 'oh-select oh-select-2'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['company_id'].queryset = Company.objects.filter(is_active=True)
+
+    def as_p(self, *args, **kwargs):
+        """
+        Render the form fields as HTML table rows with Bootstrap styling.
+        """
+        context = {"form": self}
+        table_html = render_to_string("common_form.html", context)
+        return table_html

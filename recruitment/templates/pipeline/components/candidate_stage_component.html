@@ -265,6 +265,17 @@
                                     <ion-icon name="heart-circle-outline"></ion-icon>
                                 </button>
                             {% endif %}
+                            {% if perms.recruitment.change_candidate or request.user.employee_get in stage.stage_managers.all %}
+                                <button type="button" class="oh-btn oh-btn--light-bkg w-100" title="{% trans 'Skill Rating' %}"
+                                    data-toggle="oh-modal-toggle"
+                                    hx-get="{% url 'candidate-skill-rating' cand.id %}?recruitment_id={{rec.id}}&stage_id={{stage.id}}"
+                                    hx-target="#createTarget"
+                                    hx-swap="innerHTML"
+                                    data-target="#createModal"
+                                    style="flex: 1 0 auto; width:25px !important;height: 40.68px; padding: 0;color: blue;">
+                                    <ion-icon name="star-outline"></ion-icon>
+                                </button>
+                            {% endif %}
                             {% if "onboarding"|app_installed %}
                                 {% if perms.recruitment.add_rejectedcandidate or request.user.employee_get in stage.stage_managers.all %}
                                     <button type="button" hx-target="#rejectModalBody" hx-swap="innerHTML"

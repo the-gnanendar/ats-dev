@@ -126,20 +126,20 @@ def candidate_survey(request):
     candidate = Candidate(**candidate_dict[0]["fields"])
     form = SurveyForm(recruitment=recruitment).form
     if request.method == "POST":
-        if not Candidate.objects.filter(
+        if not CandidateApplication.objects.filter(
             email=candidate.email, recruitment_id=candidate.recruitment_id
         ).exists():
             candidate.save()
         else:
-            candidate = Candidate.objects.filter(
+            candidate = CandidateApplication.objects.filter(
                 email=candidate.email, recruitment_id=candidate.recruitment_id
             ).first()
         answer = (
-            RecruitmentSurveyAnswer()
-            if candidate.recruitmentsurveyanswer_set.first() is None
-            else candidate.recruitmentsurveyanswer_set.first()
+            RecruitmentSurveyAnswerApplication()
+            if candidate.recruitmentsurveyanswerapplication_set.first() is None
+            else candidate.recruitmentsurveyanswerapplication_set.first()
         )
-        answer.candidate_id = candidate
+        answer.candidate_application_id = candidate
 
         # Process the POST data to properly handle multiple values
         answer_data = {}
@@ -370,8 +370,8 @@ def application_form(request):
             candidate_obj = form.save(commit=False)
             recruitment_obj = candidate_obj.recruitment_id
             stages = recruitment_obj.stage_set.all()
-            if stages.filter(stage_type="applied").exists():
-                candidate_obj.stage_id = stages.filter(stage_type="applied").first()
+            if stages.filter(stage_type="sourced").exists():
+                candidate_obj.stage_id = stages.filter(stage_type="sourced").first()
             else:
                 candidate_obj.stage_id = stages.order_by("sequence").first()
             messages.success(request, _("Application saved."))

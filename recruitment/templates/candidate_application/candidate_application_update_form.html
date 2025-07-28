@@ -1,0 +1,122 @@
+{% extends 'index.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper mt-5" id="section">
+    <form method="post" class="oh-general__tab-target oh-profile-section mb-4" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="oh-profile-section__card">
+            <div id="personalMessage">
+                {% if messages %}
+                <div class="oh-alert-container">
+                    {% for message in messages %}
+                    <div class="oh-alert oh-alert--animated {{message.tags}}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label required-star" for="{{form.name.id_for_label}}" 
+                               title="{{ form.name.help_text|safe }}">
+                            {{ form.name.label }}
+                        </label>
+                        {{ form.name }}
+                        {{ form.name.errors }}
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label required-star" for="{{form.email.id_for_label}}" 
+                               title="{{ form.email.help_text|safe }}">
+                            {{ form.email.label }}
+                        </label>
+                        {{ form.email }}
+                        {{ form.email.errors }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label" for="{{form.mobile.id_for_label}}" 
+                               title="{{ form.mobile.help_text|safe }}">
+                            {{ form.mobile.label }}
+                        </label>
+                        {{ form.mobile }}
+                        {{ form.mobile.errors }}
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label" for="{{form.recruitment_id.id_for_label}}" 
+                               title="{{ form.recruitment_id.help_text|safe }}">
+                            {{ form.recruitment_id.label }}
+                        </label>
+                        {{ form.recruitment_id }}
+                        {{ form.recruitment_id.errors }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label" for="{{form.job_position_id.id_for_label}}" 
+                               title="{{ form.job_position_id.help_text|safe }}">
+                            {{ form.job_position_id.label }}
+                        </label>
+                        {{ form.job_position_id }}
+                        {{ form.job_position_id.errors }}
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label" for="{{form.stage_id.id_for_label}}" 
+                               title="{{ form.stage_id.help_text|safe }}">
+                            {{ form.stage_id.label }}
+                        </label>
+                        {{ form.stage_id }}
+                        {{ form.stage_id.errors }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label" for="{{form.resume.id_for_label}}" 
+                               title="{{ form.resume.help_text|safe }}">
+                            {{ form.resume.label }}
+                        </label>
+                        {{ form.resume }}
+                        {{ form.resume.errors }}
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label" for="{{form.profile.id_for_label}}" 
+                               title="{{ form.profile.help_text|safe }}">
+                            {{ form.profile.label }}
+                        </label>
+                        {{ form.profile }}
+                        {{ form.profile.errors }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="w-100 d-flex align-items-center justify-content-end">
+                <button type="submit" class="oh-btn oh-btn--secondary oh-btn--w-100-resp">
+                    {% trans "Update Application" %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %} 

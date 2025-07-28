@@ -201,16 +201,28 @@
                       >
                     </li>
                     {% endif %}
-                    {% if perms.recruitment.add_skillzonecandidate or request.user|is_stagemanager %}
+                                        {% if perms.recruitment.add_skillzonecandidate or request.user|is_stagemanager %}
                     <li class="oh-dropdown__item">
-                      <a
+                        <a
                         class="oh-dropdown__link oh-dropdown__link--secondary oh-activity-sidebar__open"
                         data-toggle="oh-modal-toggle"
                         data-target="#createModal"
                         hx-get="{% url 'to-skill-zone' cand.id %}"
                         hx-target="#createTarget"
                         >{% trans "Add to Sill Zone" %}</a
-                      >
+                        >
+                    </li>
+                    {% endif %}
+                    {% if perms.recruitment.change_candidate or request.user|is_stagemanager %}
+                    <li class="oh-dropdown__item">
+                        <a
+                        class="oh-dropdown__link oh-dropdown__link--secondary"
+                        data-toggle="oh-modal-toggle"
+                        data-target="#createModal"
+                        hx-get="{% url 'candidate-skill-rating' cand.id %}?recruitment_id={{rec.id}}&stage_id={{stage.id}}"
+                        hx-target="#createTarget"
+                        >{% trans "Skill Rating" %}</a
+                        >
                     </li>
                     {% endif %}
                     {% if "onboarding"|app_installed %}

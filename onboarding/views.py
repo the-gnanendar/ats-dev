@@ -388,7 +388,9 @@ def candidate_creation(request):
         form = OnboardingCandidateForm(request.POST, request.FILES)
         if form.is_valid():
             candidate = form.save()
-            candidate.hired = True
+            # For onboarding, we need to create a CandidateApplication for the hired candidate
+            # This assumes the candidate is being hired for a specific recruitment
+            # You may need to adjust this logic based on your specific requirements
             candidate.save()
             messages.success(request, _("New candidate created successfully.."))
             return redirect(candidates_view)
@@ -462,32 +464,40 @@ def candidates_single_view(request, id, **kwargs):
     Candidate individual view for the onboarding candidates
     """
     candidate = Candidate.objects.get(id=id)
-    if not CandidateStage.objects.filter(candidate_id=candidate).exists():
-        try:
-            onboarding_stage = OnboardingStage.objects.filter(
-                recruitment_id=candidate.recruitment_id
-            ).order_by("sequence")[0]
-            CandidateStage(
-                candidate_id=candidate, onboarding_stage_id=onboarding_stage
-            ).save()
-        except Exception:
-            messages.error(
-                request,
-                _("%(recruitment)s has no stage..")
-                % {"recruitment": candidate.recruitment_id},
-            )
-        if tasks := OnboardingTask.objects.filter(
-            recruitment_id=candidate.recruitment_id
-        ):
-            for task in tasks:
-                if not CandidateTask.objects.filter(
-                    candidate_id=candidate, onboarding_task_id=task
-                ).exists():
-                    CandidateTask(
+    # For onboarding, we need to work with CandidateApplication
+    # This is a placeholder - you may need to adjust based on your specific requirements
+    candidate_applications = CandidateApplication.objects.filter(
+        candidate_id=candidate, hired=True
+    )
+    if candidate_applications.exists():
+        candidate_app = candidate_applications.first()
+        if not CandidateStage.objects.filter(candidate_id=candidate).exists():
+            try:
+                onboarding_stage = OnboardingStage.objects.filter(
+                    recruitment_id=candidate_app.recruitment_id
+                ).order_by("sequence")[0]
+                CandidateStage(
+                    candidate_id=candidate, onboarding_stage_id=onboarding_stage
+                ).save()
+            except Exception:
+                messages.error(
+                    request,
+                    _("%(recruitment)s has no stage..")
+                    % {"recruitment": candidate_app.recruitment_id},
+                )
+            if tasks := OnboardingTask.objects.filter(
+                recruitment_id=candidate_app.recruitment_id
+            ):
+                for task in tasks:
+                    if not CandidateTask.objects.filter(
                         candidate_id=candidate, onboarding_task_id=task
-                    ).save()
+                    ).exists():
+                        CandidateTask(
+                            candidate_id=candidate, onboarding_task_id=task
+                        ).save()
 
-    recruitment = candidate.recruitment_id
+    # Get recruitment from candidate application
+    recruitment = candidate_app.recruitment_id if candidate_applications.exists() else None
     choices = CandidateTask.choice
     context = {
         "recruitment": recruitment,
@@ -531,10 +541,15 @@ def candidates_view(request):
     Returns:
     GET : return candidate view  template
     """
-    queryset = Candidate.objects.filter(
-        is_active=True,
+    # Get candidates who have hired applications
+    hired_applications = CandidateApplication.objects.filter(
         hired=True,
         recruitment_id__closed=False,
+    )
+    candidate_ids = hired_applications.values_list('candidate_id', flat=True)
+    queryset = Candidate.objects.filter(
+        id__in=candidate_ids,
+        is_active=True,
     )
     candidate_filter_obj = CandidateFilter(request.GET, queryset)
     previous_data = request.GET.urlencode()
@@ -562,9 +577,14 @@ def candidates_view(request):
 @permission_required(perm="recruitment.view_candidate")
 def hired_candidate_view(request):
     previous_data = request.GET.urlencode()
-    candidates = Candidate.objects.filter(
+    # Get candidates who have hired applications
+    hired_applications = CandidateApplication.objects.filter(
         hired=True,
         recruitment_id__closed=False,
+    )
+    candidate_ids = hired_applications.values_list('candidate_id', flat=True)
+    candidates = Candidate.objects.filter(
+        id__in=candidate_ids,
     )
     if request.GET.get("is_active") is None:
         candidates = candidates.filter(is_active=True)
@@ -654,7 +674,12 @@ def email_send(request):
         attachments = list(set(attachments_other) | set([]))
         candidate = Candidate.objects.get(id=cand_id)
         if not request.GET.get("no_portal"):
-            if candidate.converted_employee_id:
+            # Check if candidate has been converted to employee in any application
+            converted_applications = CandidateApplication.objects.filter(
+                candidate_id=candidate,
+                converted=True
+            )
+            if converted_applications.exists():
                 messages.info(
                     request, _(f"{candidate} has already been converted to employee.")
                 )
@@ -710,16 +735,33 @@ def email_send(request):
             except Exception as e:
                 logger.error(e)
                 messages.error(request, f"Mail not send to {candidate.name}")
-            candidate.start_onboard = True
-            candidate.save()
-        try:
-            onboarding_candidate = CandidateStage()
-            onboarding_candidate.onboarding_stage_id = (
-                candidate.recruitment_id.onboarding_stage.first()
+            # Update start_onboard in CandidateApplication
+            hired_applications = CandidateApplication.objects.filter(
+                candidate_id=candidate,
+                hired=True
             )
-            onboarding_candidate.candidate_id = candidate
-            onboarding_candidate.save()
-            messages.success(request, "Candidate Added to Onboarding Stage")
+            if hired_applications.exists():
+                candidate_app = hired_applications.first()
+                candidate_app.start_onboard = True
+                candidate_app.save()
+        try:
+            # Get the hired candidate application for this candidate
+            hired_applications = CandidateApplication.objects.filter(
+                candidate_id=candidate,
+                hired=True
+            )
+            
+            if hired_applications.exists():
+                candidate_app = hired_applications.first()
+                onboarding_candidate = CandidateStage()
+                onboarding_candidate.onboarding_stage_id = (
+                    candidate_app.recruitment_id.onboarding_stage.first()
+                )
+                onboarding_candidate.candidate_id = candidate
+                onboarding_candidate.save()
+                messages.success(request, "Candidate Added to Onboarding Stage")
+            else:
+                messages.warning(request, f"No hired application found for {candidate.name}")
         except Exception as e:
             logger.error(e)
 
@@ -993,6 +1035,15 @@ def profile_view(request, token):
             onboarding_portal.count = 2
             onboarding_portal.save()
             messages.success(request, _("Profile picture updated successfully.."))
+    # Get company from hired candidate application
+    hired_applications = CandidateApplication.objects.filter(
+        candidate_id=candidate,
+        hired=True
+    )
+    company = None
+    if hired_applications.exists():
+        company = hired_applications.first().recruitment_id.company_id
+    
     return render(
         request,
         "onboarding/profile_view.html",
@@ -1000,7 +1051,7 @@ def profile_view(request, token):
             "candidate": candidate,
             "profile": onboarding_portal.profile,
             "token": token,
-            "company": candidate.recruitment_id.company_id,
+            "company": company,
         },
     )
 
@@ -1058,7 +1109,18 @@ def employee_creation(request, token):
             employee_personal_info.employee_profile = onboarding_portal.profile
             employee_personal_info.is_from_onboarding = True
             employee_personal_info.save()
-            job_position = onboarding_portal.candidate_id.job_position_id
+            # Get job position from hired candidate application
+            hired_applications = CandidateApplication.objects.filter(
+                candidate_id=candidate,
+                hired=True
+            )
+            job_position = None
+            joining_date = None
+            if hired_applications.exists():
+                candidate_app = hired_applications.first()
+                job_position = candidate_app.job_position_id
+                joining_date = candidate_app.joining_date
+            
             existing_work_info = EmployeeWorkInformation.objects.filter(
                 employee_id=employee_personal_info,
             ).first()
@@ -1067,7 +1129,7 @@ def employee_creation(request, token):
             )
             work_info.employee_id = employee_personal_info
             work_info.job_position_id = job_position
-            work_info.date_joining = candidate.joining_date
+            work_info.date_joining = joining_date
             work_info.email = candidate.email
             work_info.save()
             onboarding_portal.count = 3
@@ -1076,10 +1138,19 @@ def employee_creation(request, token):
                 request, _("Employee personal details created successfully..")
             )
             return redirect("employee-bank-details", token)
+    # Get company from hired candidate application
+    hired_applications = CandidateApplication.objects.filter(
+        candidate_id=candidate,
+        hired=True
+    )
+    company = None
+    if hired_applications.exists():
+        company = hired_applications.first().recruitment_id.company_id
+    
     return render(
         request,
         "onboarding/employee_creation.html",
-        {"form": form, "employee": candidate.recruitment_id.company_id},
+        {"form": form, "employee": company},
     )
 
 
@@ -1134,8 +1205,18 @@ def employee_bank_details_save(form, request, onboarding_portal):
     employee = Employee.objects.get(employee_user_id=request.user)
     employee_bank_detail.employee_id = employee
     candidate = onboarding_portal.candidate_id
-    candidate.converted_employee_id = employee
-    candidate.save()
+    
+    # Update converted_employee_id in CandidateApplication
+    hired_applications = CandidateApplication.objects.filter(
+        candidate_id=candidate,
+        hired=True
+    )
+    if hired_applications.exists():
+        candidate_app = hired_applications.first()
+        candidate_app.converted_employee_id = employee
+        candidate_app.converted = True
+        candidate_app.save()
+    
     employee_bank_detail.save()
     onboarding_portal.count = 4
     onboarding_portal.used = True
@@ -1299,6 +1380,19 @@ def candidate_stage_update(request, candidate_id, recruitment_id):
     recruitments = Recruitment.objects.filter(id=recruitment_id)
     stage = OnboardingStage.objects.get(id=stage_id)
     candidate = Candidate.objects.get(id=candidate_id)
+    
+    # Get the hired candidate application for this recruitment
+    candidate_app = CandidateApplication.objects.filter(
+        candidate_id=candidate,
+        recruitment_id=recruitment_id,
+        hired=True
+    ).first()
+    
+    if not candidate_app:
+        return JsonResponse(
+            {"message": _("No hired application found for this candidate"), "type": "error"}
+        )
+    
     candidate_stage = CandidateStage.objects.get(candidate_id=candidate)
     candidate_stage.onboarding_stage_id = stage
     candidate_stage.save()
@@ -1351,12 +1445,19 @@ def candidate_stage_bulk_update(request):
 
     choices = CandidateTask.choice
 
-    CandidateStage.objects.filter(candidate_id__id__in=candidate_id_list).update(
+    # Filter candidates who have hired applications for this recruitment
+    hired_candidate_ids = CandidateApplication.objects.filter(
+        candidate_id__id__in=candidate_id_list,
+        recruitment_id=recrutment_id,
+        hired=True
+    ).values_list('candidate_id', flat=True)
+
+    CandidateStage.objects.filter(candidate_id__id__in=hired_candidate_ids).update(
         onboarding_stage_id=stage
     )
     type = "info"
     message = "No candidates selected"
-    if candidate_id_list:
+    if hired_candidate_ids:
         type = "success"
         message = "Candidate stage updated successfully"
     groups = onboarding_query_grouper(request, recruitments)
@@ -1460,15 +1561,26 @@ def update_joining(request):
         messages.error(request, _("Candidate not found"))
         return JsonResponse({"type": "danger"}, status=400)
 
-    candidate_obj.joining_date = date_value
-    candidate_obj.save()
-    messages.success(
-        request,
-        _("{candidate}'s Date of joining updated successfully").format(
-            candidate=candidate_obj.name
-        ),
+    # Update joining date in CandidateApplication
+    hired_applications = CandidateApplication.objects.filter(
+        candidate_id=candidate_obj,
+        hired=True
     )
-    return JsonResponse({"type": "success"})
+    
+    if hired_applications.exists():
+        candidate_app = hired_applications.first()
+        candidate_app.joining_date = date_value
+        candidate_app.save()
+        messages.success(
+            request,
+            _("{candidate}'s Date of joining updated successfully").format(
+                candidate=candidate_obj.name
+            ),
+        )
+        return JsonResponse({"type": "success"})
+    else:
+        messages.error(request, _("No hired application found for this candidate"))
+        return JsonResponse({"type": "danger"}, status=400)
 
 
 @login_required
@@ -1476,9 +1588,16 @@ def update_joining(request):
 def view_dashboard(request):
     recruitment = Recruitment.objects.all().values_list("title", flat=True)
     candidates = Candidate.objects.all()
-    hired = candidates.filter(start_onboard=True)
-    onboard_candidates = Candidate.objects.filter(start_onboard=True)
-    job_positions = onboard_candidates.values_list(
+    
+    # Get hired candidates from CandidateApplication
+    hired_applications = CandidateApplication.objects.filter(hired=True)
+    hired_candidate_ids = hired_applications.values_list('candidate_id', flat=True)
+    hired = candidates.filter(id__in=hired_candidate_ids, start_onboard=True)
+    
+    onboard_candidates = candidates.filter(id__in=hired_candidate_ids, start_onboard=True)
+    
+    # Get job positions from hired applications
+    job_positions = hired_applications.values_list(
         "job_position_id__job_position", flat=True
     )
 
@@ -1650,10 +1769,21 @@ def update_probation_end(request):
     if probation_end == "":
         probation_end = None
 
-    candidate.probation_end = probation_end
-    candidate.save()
-    messages.success(request, _("Probation end date updated"))
-    return JsonResponse({"type": "success"})
+    # Update probation end date in CandidateApplication
+    hired_applications = CandidateApplication.objects.filter(
+        candidate_id=candidate,
+        hired=True
+    )
+    
+    if hired_applications.exists():
+        candidate_app = hired_applications.first()
+        candidate_app.probation_end = probation_end
+        candidate_app.save()
+        messages.success(request, _("Probation end date updated"))
+        return JsonResponse({"type": "success"})
+    else:
+        messages.error(request, _("No hired application found for this candidate"))
+        return JsonResponse({"type": "danger"}, status=400)
 
 
 @login_required
@@ -1743,10 +1873,21 @@ def update_offer_letter_status(request):
     except Candidate.DoesNotExist:
         messages.error(request, "Candidate not found")
         return redirect("/onboarding/candidates-view/")
-    if status in ["not_sent", "sent", "accepted", "rejected", "joined"]:
-        candidate.offer_letter_status = status
-        candidate.save()
-    messages.success(request, "Status of offer letter updated successfully")
+    # Update offer letter status in CandidateApplication
+    hired_applications = CandidateApplication.objects.filter(
+        candidate_id=candidate,
+        hired=True
+    )
+    
+    if hired_applications.exists():
+        candidate_app = hired_applications.first()
+        if status in ["not_sent", "sent", "accepted", "rejected", "joined"]:
+            candidate_app.offer_letter_status = status
+            candidate_app.save()
+        messages.success(request, "Status of offer letter updated successfully")
+    else:
+        messages.error(request, "No hired application found for this candidate")
+        return redirect("/onboarding/candidates-view/")
     url = "/onboarding/candidates-view/"
     return HttpResponse(
         f"""
@@ -1788,9 +1929,14 @@ def candidate_select(request):
     """
     page_number = request.GET.get("page")
 
-    employees = queryset = Candidate.objects.filter(
+    # Get hired candidates from CandidateApplication
+    hired_applications = CandidateApplication.objects.filter(
         hired=True,
         recruitment_id__closed=False,
+    )
+    hired_candidate_ids = hired_applications.values_list('candidate_id', flat=True)
+    employees = queryset = Candidate.objects.filter(
+        id__in=hired_candidate_ids,
         is_active=True,
     )
 
@@ -1813,11 +1959,17 @@ def candidate_select_filter(request):
     filters = json.loads(filtered) if filtered else {}
 
     if page_number == "all":
+        # Get hired candidates from CandidateApplication
+        hired_applications = CandidateApplication.objects.filter(
+            hired=True,
+            recruitment_id__closed=False,
+        )
+        hired_candidate_ids = hired_applications.values_list('candidate_id', flat=True)
+        
         candidate_filter = CandidateFilter(
             filters,
             queryset=Candidate.objects.filter(
-                hired=True,
-                recruitment_id__closed=False,
+                id__in=hired_candidate_ids,
                 is_active=True,
             ),
         )
@@ -1842,12 +1994,22 @@ def offer_letter_bulk_status_update(request):
     for id in ids:
         try:
             candidate = Candidate.objects.filter(id=int(id)).first()
-            if candidate.offer_letter_status != status:
-                candidate.offer_letter_status = status
-                candidate.save()
-                messages.success(request, "offer letter status updated successfully")
+            # Get hired candidate application for this candidate
+            hired_applications = CandidateApplication.objects.filter(
+                candidate_id=candidate,
+                hired=True
+            )
+            
+            if hired_applications.exists():
+                candidate_app = hired_applications.first()
+                if candidate_app.offer_letter_status != status:
+                    candidate_app.offer_letter_status = status
+                    candidate_app.save()
+                    messages.success(request, "offer letter status updated successfully")
+                else:
+                    messages.error(request, "Status already in {} status".format(status))
             else:
-                messages.error(request, "Status already in {} status".format(status))
+                messages.error(request, "No hired application found for candidate")
         except:
             messages.error(request, "Candidate doesnot exist")
 

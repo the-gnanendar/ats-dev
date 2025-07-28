@@ -23,14 +23,14 @@
 <div class="d-flex flex-row-reverse">
   <span
     class="m-1"
-    onclick="$('[name=stage_type]').val('hired'); $('[name=stage_type]').first().change(); $('.filterButton').click()"
+    onclick="$('[name=stage_type]').val('selected'); $('[name=stage_type]').first().change(); $('.filterButton').click()"
     style="cursor: pointer; margin-left: 10px"
   >
     <span
       class="oh-dot oh-dot--small me-1"
       style="background-color: yellowgreen"
     ></span>
-    {% trans "Hired" %}
+    {% trans "Selected" %}
   </span>
   <span
     class="m-1"
@@ -67,14 +67,14 @@
   </span>
   <span
     class="m-1"
-    onclick="$('[name=stage_type]').val('initial'); $('[name=stage_type]').first().change(); $('.filterButton').click()"
+    onclick="$('[name=stage_type]').val('sourced'); $('[name=stage_type]').first().change(); $('.filterButton').click()"
     style="cursor: pointer; margin-left: 10px"
   >
     <span
       class="oh-dot oh-dot--small me-1"
       style="background-color: cyan"
     ></span>
-    {% trans "Initial" %}
+    {% trans "Sourced" %}
   </span>
 </div>
 <!-- end of quick filters -->

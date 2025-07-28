@@ -1,14 +1,101 @@
 {% load i18n %}
 <h5 class="oh-job__post">{{recruitment.title}}</h5>
-<p class="oh-onboarding__content oh-job__post_description">{{recruitment.description|safe}}</p>
-<span class = "fw-bold d-block"> {% trans "Job positions :" %}</span>
+
+<!-- Job Summary -->
+{% if recruitment.job_summary %}
+<div class="oh-job__section">
+    <h6 class="oh-job__section-title">{% trans "Job Summary" %}</h6>
+    <p class="oh-onboarding__content">{{recruitment.job_summary|safe}}</p>
+</div>
+{% endif %}
+
+<!-- Key Responsibilities -->
+{% if recruitment.key_responsibilities %}
+<div class="oh-job__section">
+    <h6 class="oh-job__section-title">{% trans "Key Responsibilities" %}</h6>
+    <div class="oh-onboarding__content">{{recruitment.key_responsibilities|safe}}</div>
+</div>
+{% endif %}
+
+<!-- Job Details -->
+<div class="oh-job__section">
+    <h6 class="oh-job__section-title">{% trans "Job Details" %}</h6>
+    <div class="row">
+        <div class="col-md-6">
+            <ul class="oh-job__description-list">
+                {% if recruitment.employment_type %}
+                <li class="oh-job__description-list_item">
+                    <strong>{% trans "Employment Type" %}:</strong> {{recruitment.get_employment_type_display}}
+                </li>
+                {% endif %}
+                {% if recruitment.work_location %}
+                <li class="oh-job__description-list_item">
+                    <strong>{% trans "Location" %}:</strong> {{recruitment.work_location}}
+                </li>
+                {% endif %}
+                {% if recruitment.remote_policy %}
+                <li class="oh-job__description-list_item">
+                    <strong>{% trans "Remote Policy" %}:</strong> {{recruitment.get_remote_policy_display}}
+                </li>
+                {% endif %}
+                {% if recruitment.salary_min or recruitment.salary_max %}
+                <li class="oh-job__description-list_item">
+                    <strong>{% trans "Salary Range" %}:</strong> 
+                    {% if recruitment.salary_min and recruitment.salary_max %}
+                        {{recruitment.salary_currency}} {{recruitment.salary_min|floatformat:0}} - {{recruitment.salary_max|floatformat:0}}
+                    {% elif recruitment.salary_min %}
+                        {{recruitment.salary_currency}} {{recruitment.salary_min|floatformat:0}}+ 
+                    {% elif recruitment.salary_max %}
+                        Up to {{recruitment.salary_currency}} {{recruitment.salary_max|floatformat:0}}
+                    {% endif %}
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+        <div class="col-md-6">
+            <ul class="oh-job__description-list">
+                {% if recruitment.min_experience_years %}
+                <li class="oh-job__description-list_item">
+                    <strong>{% trans "Experience Required" %}:</strong> 
+                    {{recruitment.min_experience_years}} {% trans "years" %}
+                    {% if recruitment.max_experience_years %}
+                        - {{recruitment.max_experience_years}} {% trans "years" %}
+                    {% endif %}
+                </li>
+                {% endif %}
+                {% if recruitment.required_education_level %}
+                <li class="oh-job__description-list_item">
+                    <strong>{% trans "Education Required" %}:</strong> {{recruitment.get_required_education_level_display}}
+                </li>
+                {% endif %}
+                {% if recruitment.application_deadline %}
+                <li class="oh-job__description-list_item">
+                    <strong>{% trans "Application Deadline" %}:</strong> {{recruitment.application_deadline}}
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Preferred Qualifications -->
+{% if recruitment.preferred_qualifications %}
+<div class="oh-job__section">
+    <h6 class="oh-job__section-title">{% trans "Preferred Qualifications" %}</h6>
+    <div class="oh-onboarding__content">{{recruitment.preferred_qualifications|safe}}</div>
+</div>
+{% endif %}
+
+<!-- Job Positions -->
+<span class="fw-bold d-block">{% trans "Job positions" %}:</span>
 <ul class="oh-job__description-list mt-3">
     {% for job in recruitment.open_positions.all %}
         <li class="oh-job__description-list_item">{{job}}</li>
     {% endfor %}
 </ul>
 
-    <a href='{% url "application-form" %}?recruitmentId={{recruitment.id}}' rel="noopener noreferrer" target="_blank" class="oh-btn  oh-apply_btn" role="button" data-toggle="oh-modal-toggle"
-    data-target="#jobDetailModal">
+<a href='{% url "application-form" %}?recruitmentId={{recruitment.id}}' rel="noopener noreferrer" target="_blank" class="oh-btn oh-apply_btn" role="button" data-toggle="oh-modal-toggle" data-target="#jobDetailModal">
     {% trans "Apply Now" %}
 </a>

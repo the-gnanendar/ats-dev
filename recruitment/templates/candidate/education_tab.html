@@ -1,0 +1,141 @@
+{% load i18n %}
+{% load static %}
+
+<div class="oh-card">
+    <div class="oh-card__header">
+        <h4 class="oh-card__title">{% trans "Education" %}</h4>
+        <div class="oh-card__actions">
+            <a href="{% url 'candidate-education-update' candidate.id %}" class="oh-btn oh-btn--secondary">
+                <ion-icon name="create-outline"></ion-icon>
+                {% trans "Edit Education" %}
+            </a>
+        </div>
+    </div>
+    
+    <div class="oh-card__body">
+        {% if candidate.education.all %}
+            {% for education in candidate.education.all %}
+            <div class="education-item mb-4 p-3 border rounded">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">{{ education.degree_name }}</h5>
+                        <h6 class="text-muted mb-1">{{ education.institution_name }}</h6>
+                        <p class="text-muted small mb-0">
+                            {% if education.start_date and education.end_date %}
+                                {{ education.start_date|date:"M Y" }} - 
+                                {% if education.is_current %}
+                                    {% trans "Present" %}
+                                {% else %}
+                                    {{ education.end_date|date:"M Y" }}
+                                {% endif %}
+                            {% elif education.graduation_date %}
+                                {% trans "Graduated" %} {{ education.graduation_date|date:"M Y" }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if education.is_current %}
+                        <span class="oh-badge oh-badge--success">{% trans "Current" %}</span>
+                    {% endif %}
+                </div>
+                
+                {% if education.field_of_study %}
+                <p class="mb-2">
+                    <ion-icon name="library-outline"></ion-icon>
+                    {{ education.field_of_study }}
+                </p>
+                {% endif %}
+                
+                {% if education.institution_location %}
+                <p class="mb-2">
+                    <ion-icon name="location-outline"></ion-icon>
+                    {{ education.institution_location }}
+                </p>
+                {% endif %}
+                
+                {% if education.gpa %}
+                <p class="mb-2">
+                    <ion-icon name="star-outline"></ion-icon>
+                    {% trans "GPA" %}: {{ education.gpa }}/{{ education.max_gpa }}
+                </p>
+                {% endif %}
+                
+                {% if education.honors %}
+                <div class="mb-3">
+                    <h6>{% trans "Honors & Awards" %}</h6>
+                    <p>{{ education.honors|linebreaks }}</p>
+                </div>
+                {% endif %}
+                
+                {% if education.activities %}
+                <div class="mb-3">
+                    <h6>{% trans "Activities & Societies" %}</h6>
+                    <p>{{ education.activities|linebreaks }}</p>
+                </div>
+                {% endif %}
+                
+                {% if education.description %}
+                <div class="mb-3">
+                    <h6>{% trans "Description" %}</h6>
+                    <p>{{ education.description|linebreaks }}</p>
+                </div>
+                {% endif %}
+                
+                {% if education.institution_website %}
+                <a href="{{ education.institution_website }}" target="_blank" class="oh-btn oh-btn--light-bkg oh-btn--sm">
+                    <ion-icon name="open-outline"></ion-icon>
+                    {% trans "Visit Institution" %}
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="oh-empty-state">
+                <div class="oh-empty-state__icon">
+                    <ion-icon name="school-outline"></ion-icon>
+                </div>
+                <h5 class="oh-empty-state__title">{% trans "No Education" %}</h5>
+                <p class="oh-empty-state__text">
+                    {% trans "No education has been added yet." %}
+                </p>
+                <div class="oh-empty-state__actions">
+                    <a href="{% url 'candidate-education-update' candidate.id %}" class="oh-btn oh-btn--primary">
+                        <ion-icon name="add-outline"></ion-icon>
+                        {% trans "Add Education" %}
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.education-item {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.education-item:hover {
+    background-color: #e9ecef;
+}
+
+.oh-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.oh-empty-state__icon {
+    font-size: 48px;
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+.oh-empty-state__title {
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.oh-empty-state__text {
+    color: #666;
+    margin-bottom: 24px;
+}
+</style> 

@@ -1,0 +1,146 @@
+{% load i18n %}
+{% load static %}
+
+<div class="oh-card">
+    <div class="oh-card__header">
+        <h4 class="oh-card__title">{% trans "Skills" %}</h4>
+        <div class="oh-card__actions">
+            <a href="{% url 'candidate-skills-update' candidate.id %}" class="oh-btn oh-btn--secondary">
+                <ion-icon name="create-outline"></ion-icon>
+                {% trans "Edit Skills" %}
+            </a>
+        </div>
+    </div>
+    
+    <div class="oh-card__body">
+        {% if candidate.skills.all %}
+            {% regroup candidate.skills.all by skill_category as skills_by_category %}
+            
+            {% for category in skills_by_category %}
+            <div class="skills-category mb-4">
+                <h5 class="mb-3">{{ category.grouper|title }}</h5>
+                <div class="row">
+                    {% for skill in category.list %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="skill-item p-3 border rounded h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0">{{ skill.skill_name }}</h6>
+                                {% if skill.is_highlighted %}
+                                    <ion-icon name="star" class="text-warning"></ion-icon>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-2">
+                                <span class="oh-badge oh-badge--info">{{ skill.get_proficiency_level_display }}</span>
+                                {% if skill.years_of_experience %}
+                                    <span class="oh-badge oh-badge--secondary">{{ skill.years_of_experience }} {% trans "years" %}</span>
+                                {% endif %}
+                            </div>
+                            
+                            {% if skill.description %}
+                            <p class="small text-muted mb-0">{{ skill.description|truncatewords:15 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            
+            <!-- Skills Summary -->
+            <div class="skills-summary mt-4 p-3 bg-light rounded">
+                <h6>{% trans "Skills Summary" %}</h6>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-primary">{{ candidate.skills.count }}</h4>
+                            <small class="text-muted">{% trans "Total Skills" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-success">{{ candidate.skills.filter.proficiency_level='expert'|length }}</h4>
+                            <small class="text-muted">{% trans "Expert Level" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-info">{{ candidate.skills.filter.proficiency_level='advanced'|length }}</h4>
+                            <small class="text-muted">{% trans "Advanced Level" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-warning">{{ candidate.skills.filter.is_highlighted=True|length }}</h4>
+                            <small class="text-muted">{% trans "Highlighted" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="oh-empty-state">
+                <div class="oh-empty-state__icon">
+                    <ion-icon name="construct-outline"></ion-icon>
+                </div>
+                <h5 class="oh-empty-state__title">{% trans "No Skills" %}</h5>
+                <p class="oh-empty-state__text">
+                    {% trans "No skills have been added yet." %}
+                </p>
+                <div class="oh-empty-state__actions">
+                    <a href="{% url 'candidate-skills-update' candidate.id %}" class="oh-btn oh-btn--primary">
+                        <ion-icon name="add-outline"></ion-icon>
+                        {% trans "Add Skills" %}
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.skill-item {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    transition: all 0.2s ease;
+}
+
+.skill-item:hover {
+    background-color: #e9ecef;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.skills-category {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 1rem;
+}
+
+.skills-category:last-child {
+    border-bottom: none;
+}
+
+.skills-summary {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.oh-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.oh-empty-state__icon {
+    font-size: 48px;
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+.oh-empty-state__title {
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.oh-empty-state__text {
+    color: #666;
+    margin-bottom: 24px;
+}
+</style> 

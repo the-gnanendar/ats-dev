@@ -51,6 +51,13 @@
                 </div>
                 <div
                   data-cell-index="2"
+                  data-cell-title='{% trans "Interviewers" %}'
+                  class="oh-sticky-table__th"
+                >
+                  {% trans "Interviewers" %}
+                </div>
+                <div
+                  data-cell-index="3"
                   data-cell-title='{% trans "Type" %}'
                   class="oh-sticky-table__th"
                 >
@@ -69,7 +76,7 @@
                 class="oh-sticky-table__tr oh-permission-table__tr oh-permission-table--collapsed"
               >
                 <div
-                  class="oh-sticky-table__sd oh-permission-table--toggle {% if stage.stage_type == 'cancelled' %} row-status--red {% elif stage.stage_type == 'hired' %} row-status--yellow {% elif stage.stage_type == 'interview' %} row-status--orange {% elif stage.stage_type == 'test' %} row-status--blue {% elif stage.stage_type == 'initial' %} row-status--cyan {% endif %}"
+                  class="oh-sticky-table__sd oh-permission-table--toggle {% if stage.stage_type == 'cancelled' %} row-status--red {% elif stage.stage_type == 'selected' %} row-status--yellow {% elif stage.stage_type == 'interview' %} row-status--orange {% elif stage.stage_type == 'test' %} row-status--blue {% elif stage.stage_type == 'sourced' %} row-status--cyan {% elif stage.stage_type == 'shortlisted' %} row-status--green {% elif stage.stage_type == 'rejected' %} row-status--red {% elif stage.stage_type == 'on-hold' %} row-status--gray {% endif %}"
                   data-toggle-count
                 >
                   <div class="d-flex align-items-center">
@@ -129,6 +136,44 @@
                   </span>
                 </div>
                 <div data-cell-index="2" class="oh-sticky-table__td">
+                  {% for interviewer in stage.stage_interviewers.all %}
+                  <span
+                    class="oh-user-panel oh-collapse-panel"
+                    data-type="user"
+                  >
+                    <div class="oh-profile oh-profile--md">
+                      <div class="oh-profile__avatar mr-1">
+                        <img
+                          src="https://ui-avatars.com/api/?name={{interviewer.get_full_name}}&background=random"
+                          class="oh-profile__image"
+                          alt="Baby C."
+                        />
+                      </div>
+                      <span
+                        class="oh-profile__name oh-text--dark"
+                        title="{{interviewer}}"
+                      >
+                        {{interviewer.employee_first_name|truncatechars:6}}.
+                      </span>
+                    </div>
+                    {% if perms.recruitment.change_stage %}
+                      <button
+                        hx-post="{% url 'rec-remove-stage-interviewer' interviewer.id stage.id %}?{{pd}}&page={{data.number}}"
+                        hx-target="#stage-container"
+                        class="oh-user-panel__remove"
+                        hx-confirm='{% trans "Are sure want to remove this interviewer?" %}'
+                        title='{% trans "Remove" %}'
+                      >
+                        <ion-icon name="close-outline"></ion-icon>
+                      </button>
+                    {% endif %}
+                  </span>
+                  {% endfor %}
+                  <span class="count-span">
+                    {{stage.stage_interviewers.all|length}} {% trans "Interviewers"%}
+                  </span>
+                </div>
+                <div data-cell-index="3" class="oh-sticky-table__td">
                   {{stage.get_stage_type_display}}
                 </div>
                 {% if perms.recruitment.add_stage or perms.recruitment.change_stage or perms.recruitment.delete_stage %}

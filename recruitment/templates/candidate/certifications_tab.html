@@ -1,0 +1,139 @@
+{% load i18n %}
+{% load static %}
+
+<div class="oh-card">
+    <div class="oh-card__header">
+        <h4 class="oh-card__title">{% trans "Certifications" %}</h4>
+        <div class="oh-card__actions">
+            <a href="{% url 'candidate-certifications-update' candidate.id %}" class="oh-btn oh-btn--secondary">
+                <ion-icon name="create-outline"></ion-icon>
+                {% trans "Edit Certifications" %}
+            </a>
+        </div>
+    </div>
+    
+    <div class="oh-card__body">
+        {% if candidate.certifications.all %}
+            <div class="row">
+                {% for certification in candidate.certifications.all %}
+                <div class="col-md-6 mb-3">
+                    <div class="certification-item p-3 border rounded h-100">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h5 class="mb-1">{{ certification.certification_name }}</h5>
+                                <h6 class="text-muted mb-1">{{ certification.issuing_organization }}</h6>
+                            </div>
+                            {% if certification.is_current %}
+                                <span class="oh-badge oh-badge--success">{% trans "Valid" %}</span>
+                            {% else %}
+                                <span class="oh-badge oh-badge--warning">{% trans "Expired" %}</span>
+                            {% endif %}
+                        </div>
+                        
+                        {% if certification.issue_date %}
+                        <p class="mb-2">
+                            <ion-icon name="calendar-outline"></ion-icon>
+                            {% trans "Issued" %}: {{ certification.issue_date|date:"M Y" }}
+                        </p>
+                        {% endif %}
+                        
+                        {% if certification.expiry_date %}
+                        <p class="mb-2">
+                            <ion-icon name="time-outline"></ion-icon>
+                            {% trans "Expires" %}: {{ certification.expiry_date|date:"M Y" }}
+                        </p>
+                        {% endif %}
+                        
+                        {% if certification.credential_id %}
+                        <p class="mb-2">
+                            <ion-icon name="card-outline"></ion-icon>
+                            {% trans "Credential ID" %}: {{ certification.credential_id }}
+                        </p>
+                        {% endif %}
+                        
+                        {% if certification.description %}
+                        <div class="mb-3">
+                            <h6>{% trans "Description" %}</h6>
+                            <p class="small">{{ certification.description|linebreaks }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if certification.skills_covered %}
+                        <div class="mb-3">
+                            <h6>{% trans "Skills Covered" %}</h6>
+                            <p class="small">{{ certification.skills_covered|linebreaks }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-auto">
+                            {% if certification.credential_url %}
+                            <a href="{{ certification.credential_url }}" target="_blank" class="oh-btn oh-btn--light-bkg oh-btn--sm me-2">
+                                <ion-icon name="open-outline"></ion-icon>
+                                {% trans "Verify" %}
+                            </a>
+                            {% endif %}
+                            
+                            {% if certification.organization_website %}
+                            <a href="{{ certification.organization_website }}" target="_blank" class="oh-btn oh-btn--light-bkg oh-btn--sm">
+                                <ion-icon name="business-outline"></ion-icon>
+                                {% trans "Organization" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="oh-empty-state">
+                <div class="oh-empty-state__icon">
+                    <ion-icon name="ribbon-outline"></ion-icon>
+                </div>
+                <h5 class="oh-empty-state__title">{% trans "No Certifications" %}</h5>
+                <p class="oh-empty-state__text">
+                    {% trans "No certifications have been added yet." %}
+                </p>
+                <div class="oh-empty-state__actions">
+                    <a href="{% url 'candidate-certifications-update' candidate.id %}" class="oh-btn oh-btn--primary">
+                        <ion-icon name="add-outline"></ion-icon>
+                        {% trans "Add Certification" %}
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.certification-item {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+}
+
+.certification-item:hover {
+    background-color: #e9ecef;
+}
+
+.oh-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.oh-empty-state__icon {
+    font-size: 48px;
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+.oh-empty-state__title {
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.oh-empty-state__text {
+    color: #666;
+    margin-bottom: 24px;
+}
+</style> 

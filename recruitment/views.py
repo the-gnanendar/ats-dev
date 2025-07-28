@@ -21,7 +21,7 @@ from django.core import serializers
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
@@ -43,9 +43,11 @@ from recruitment.forms import (
     StageCreationForm,
     StageDropDownForm,
     StageNoteForm,
+    CandidateWorkExperienceFormSet, CandidateWorkProjectFormSet,
+    CandidateEducationFormSet, CandidateCertificationFormSet, CandidateSkillFormSet
 )
 from recruitment.methods import recruitment_manages
-from recruitment.models import Candidate, Recruitment, Stage, StageNote
+from recruitment.models import Candidate, Recruitment, Stage, StageNote, CandidateApplication, CandidateWorkExperience, CandidateWorkProject
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +129,10 @@ def recruitment(request):
         form = RecruitmentCreationForm(request.POST)
         if form.is_valid():
             recruitment_obj = form.save()
+            
+            # Create default stages for the recruitment
+            recruitment_obj.create_default_stages()
+            
             messages.success(request, _("Recruitment added."))
             with contextlib.suppress(Exception):
                 managers = recruitment_obj.recruitment_managers.select_related(
@@ -544,23 +550,23 @@ def recruitment_delete_pipeline(request, rec_id):
 
 
 @login_required
-@manager_can_enter(perm="recruitment.change_candidate")
+@manager_can_enter(perm="recruitment.change_candidateapplication")
 def candidate_stage_update(request, cand_id):
     """
-    This method is a ajax method used to update candidate stage when drag and drop
+    This method is a ajax method used to update candidate application stage when drag and drop
     the candidate from one stage to another on the pipeline template
     Args:
-        id : candidate_id
+        id : candidate_application_id
     """
     stage_id = request.POST["stageId"]
-    candidate_obj = Candidate.objects.get(id=cand_id)
-    history_queryset = candidate_obj.candidate_history.all().first()
+    candidate_app = CandidateApplication.objects.get(id=cand_id)
+    history_queryset = candidate_app.application_history_set.all().first()
     stage_obj = Stage.objects.get(id=stage_id)
-    previous_stage = history_queryset.stage_id
+    previous_stage = history_queryset.stage_id if history_queryset else None
     if previous_stage == stage_obj:
         return JsonResponse({"type": "info", "message": _("Sequence updated.")})
     # Here set the last updated schedule date on this stage if schedule exists in history
-    history_queryset = candidate_obj.candidate_history.filter(stage_id=stage_obj)
+    history_queryset = candidate_app.application_history_set.filter(stage_id=stage_obj)
     schedule_date = None
     if history_queryset.exists():
         # this condition is executed when a candidate dropped back to any previous
@@ -576,32 +582,32 @@ def candidate_stage_update(request, cand_id):
         or request.user.is_superuser
         or is_recruitmentmanager(rec_id=stage_obj.recruitment_id.id)[0]
     ):
-        candidate_obj.stage_id = stage_obj
-        candidate_obj.schedule_date = None
-        candidate_obj.hired = stage_obj.stage_type == "hired"
-        candidate_obj.schedule_date = schedule_date
-        candidate_obj.start_onboard = False
-        candidate_obj.save()
+        candidate_app.stage_id = stage_obj
+        candidate_app.schedule_date = None
+        candidate_app.hired = stage_obj.stage_type == "selected"
+        candidate_app.schedule_date = schedule_date
+        candidate_app.start_onboard = False
+        candidate_app.save()
         with contextlib.suppress(Exception):
             managers = stage_obj.stage_managers.select_related("employee_user_id")
             users = [employee.employee_user_id for employee in managers]
             notify.send(
                 request.user.employee_get,
                 recipient=users,
-                verb=f"New candidate arrived on stage {stage_obj.stage}",
-                verb_ar=f"وصل مرشح جديد إلى المرحلة {stage_obj.stage}",
-                verb_de=f"Neuer Kandidat ist auf der Stufe {stage_obj.stage} angekommen",
-                verb_es=f"Nuevo candidato llegó a la etapa {stage_obj.stage}",
-                verb_fr=f"Nouveau candidat arrivé à l'étape {stage_obj.stage}",
+                verb=f"New candidate application arrived on stage {stage_obj.stage}",
+                verb_ar=f"وصل طلب مرشح جديد إلى المرحلة {stage_obj.stage}",
+                verb_de=f"Neue Kandidatenbewerbung ist auf der Stufe {stage_obj.stage} angekommen",
+                verb_es=f"Nueva solicitud de candidato llegó a la etapa {stage_obj.stage}",
+                verb_fr=f"Nouvelle candidature arrivée à l'étape {stage_obj.stage}",
                 icon="person-add",
                 redirect=reverse("pipeline"),
             )
 
         return JsonResponse(
-            {"type": "success", "message": _("Candidate stage updated")}
+            {"type": "success", "message": _("Candidate application stage updated")}
         )
     return JsonResponse(
-        {"type": "danger", "message": _("Something went wrong, Try agian.")}
+        {"type": "danger", "message": _("Something went wrong, Try again.")}
     )
 
 
@@ -907,8 +913,8 @@ def stage_delete(request, stage_id):
         if len(all_this_manger) == 1:
             view_recruitment = Permission.objects.get(codename="view_recruitment")
             manager.employee_user_id.user_permissions.remove(view_recruitment.id)
-        initial_stage_manager = all_this_manger.filter(stage_type="initial")
-        if len(initial_stage_manager) == 1:
+        sourced_stage_manager = all_this_manger.filter(stage_type="sourced")
+        if len(sourced_stage_manager) == 1:
             add_candidate = Permission.objects.get(codename="add_candidate")
             change_candidate = Permission.objects.get(codename="change_candidate")
             manager.employee_user_id.user_permissions.remove(add_candidate.id)
@@ -927,32 +933,25 @@ def stage_delete(request, stage_id):
 @permission_required(perm="recruitment.add_candidate")
 def candidate(request):
     """
-    This method used to create candidate
+    This method used to create candidate profile
     """
     form = CandidateCreationForm()
-    open_recruitment = Recruitment.objects.filter(closed=False, is_active=True)
     path = "/recruitment/candidate-view"
     if request.method == "POST":
         form = CandidateCreationForm(request.POST, request.FILES)
         if form.is_valid():
             candidate_obj = form.save(commit=False)
-            candidate_obj.start_onboard = False
-            if candidate_obj.stage_id is None:
-                candidate_obj.stage_id = Stage.objects.filter(
-                    recruitment_id=candidate_obj.recruitment_id, stage_type="initial"
-                ).first()
             # when creating new candidate from onboarding view
             if request.GET.get("onboarding") == "True":
-                candidate_obj.hired = True
                 path = "/onboarding/candidates-view"
             candidate_obj.save()
-            messages.success(request, _("Candidate added."))
+            messages.success(request, _("Candidate profile added."))
             return redirect(path)
 
     return render(
         request,
         "candidate/candidate_create_form.html",
-        {"form": form, "open_recruitment": open_recruitment},
+        {"form": form},
     )
 
 
@@ -1100,9 +1099,9 @@ def candidate_update(request, cand_id):
         if form.is_valid():
             candidate_obj = form.save()
             if candidate_obj.stage_id is None:
-                candidate_obj.stage_id = Stage.objects.filter(
-                    recruitment_id=candidate_obj.recruitment_id, stage_type="initial"
-                ).first()
+                            candidate_obj.stage_id = Stage.objects.filter(
+                recruitment_id=candidate_obj.recruitment_id, stage_type="sourced"
+            ).first()
             if candidate_obj.stage_id is not None:
                 if (
                     candidate_obj.stage_id.recruitment_id
@@ -1110,7 +1109,7 @@ def candidate_update(request, cand_id):
                 ):
                     candidate_obj.stage_id = (
                         candidate_obj.recruitment_id.stage_set.filter(
-                            stage_type="initial"
+                            stage_type="sourced"
                         ).first()
                     )
             if request.GET.get("onboarding") == "True":
@@ -1227,8 +1226,8 @@ def application_form(request):
             candidate_obj = form.save(commit=False)
             recruitment_obj = candidate_obj.recruitment_id
             stages = recruitment_obj.stage_set.all()
-            if stages.filter(stage_type="applied").exists():
-                candidate_obj.stage_id = stages.filter(stage_type="applied").first()
+            if stages.filter(stage_type="sourced").exists():
+                candidate_obj.stage_id = stages.filter(stage_type="sourced").first()
             else:
                 candidate_obj.stage_id = stages.order_by("sequence").first()
             candidate_obj.save()
@@ -1396,3 +1395,162 @@ def stage_sequence_update(request):
         stage.sequence = seq
         stage.save()
     return JsonResponse({"type": "success", "message": "Stage sequence updated"})
+
+
+@login_required
+@manager_can_enter(perm="recruitment.view_candidateapplication")
+def candidate_applications_view(request, candidate_id):
+    """
+    View to display all job applications for a candidate
+    """
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    applications = CandidateApplication.objects.filter(
+        candidate_id=candidate
+    ).select_related(
+        'recruitment_id', 
+        'job_position_id', 
+        'stage_id'
+    ).order_by('-last_updated')
+    
+    context = {
+        'candidate': candidate,
+        'applications': applications,
+    }
+    
+    return render(request, 'candidate/applications_tab.html', context)
+
+
+@login_required
+@manager_can_enter(perm="recruitment.change_candidate")
+def candidate_work_experience_update(request, candidate_id):
+    """
+    Update candidate work experience with dynamic add/delete
+    """
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    
+    if request.method == 'POST':
+        formset = CandidateWorkExperienceFormSet(request.POST, instance=candidate)
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, _("Work experience updated successfully."))
+            return redirect('candidate-view-individual', candidate_id)
+    else:
+        formset = CandidateWorkExperienceFormSet(instance=candidate)
+    
+    context = {
+        'candidate': candidate,
+        'formset': formset,
+        'form_title': _("Work Experience"),
+        'form_type': 'work_experience'
+    }
+    
+    return render(request, 'candidate/dynamic_form.html', context)
+
+
+@login_required
+@manager_can_enter(perm="recruitment.change_candidate")
+def candidate_education_update(request, candidate_id):
+    """
+    Update candidate education with dynamic add/delete
+    """
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    
+    if request.method == 'POST':
+        formset = CandidateEducationFormSet(request.POST, instance=candidate)
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, _("Education updated successfully."))
+            return redirect('candidate-view-individual', candidate_id)
+    else:
+        formset = CandidateEducationFormSet(instance=candidate)
+    
+    context = {
+        'candidate': candidate,
+        'formset': formset,
+        'form_title': _("Education"),
+        'form_type': 'education'
+    }
+    
+    return render(request, 'candidate/dynamic_form.html', context)
+
+
+@login_required
+@manager_can_enter(perm="recruitment.change_candidate")
+def candidate_certifications_update(request, candidate_id):
+    """
+    Update candidate certifications with dynamic add/delete
+    """
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    
+    if request.method == 'POST':
+        formset = CandidateCertificationFormSet(request.POST, instance=candidate)
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, _("Certifications updated successfully."))
+            return redirect('candidate-view-individual', candidate_id)
+    else:
+        formset = CandidateCertificationFormSet(instance=candidate)
+    
+    context = {
+        'candidate': candidate,
+        'formset': formset,
+        'form_title': _("Certifications"),
+        'form_type': 'certifications'
+    }
+    
+    return render(request, 'candidate/dynamic_form.html', context)
+
+
+@login_required
+@manager_can_enter(perm="recruitment.change_candidate")
+def candidate_skills_update(request, candidate_id):
+    """
+    Update candidate skills with dynamic add/delete
+    """
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    
+    if request.method == 'POST':
+        formset = CandidateSkillFormSet(request.POST, instance=candidate)
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, _("Skills updated successfully."))
+            return redirect('candidate-view-individual', candidate_id)
+    else:
+        formset = CandidateSkillFormSet(instance=candidate)
+    
+    context = {
+        'candidate': candidate,
+        'formset': formset,
+        'form_title': _("Skills"),
+        'form_type': 'skills'
+    }
+    
+    return render(request, 'candidate/dynamic_form.html', context)
+
+
+@login_required
+@manager_can_enter(perm="recruitment.change_candidate")
+def candidate_work_projects_update(request, work_experience_id):
+    """
+    Update work projects for a specific work experience
+    """
+    work_experience = get_object_or_404(CandidateWorkExperience, id=work_experience_id)
+    
+    if request.method == 'POST':
+        formset = CandidateWorkProjectFormSet(request.POST, instance=work_experience)
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, _("Work projects updated successfully."))
+            return redirect('candidate-view-individual', work_experience.candidate.id)
+    else:
+        formset = CandidateWorkProjectFormSet(instance=work_experience)
+    
+    context = {
+        'candidate': work_experience.candidate,
+        'work_experience': work_experience,
+        'formset': formset,
+        'form_title': _("Work Projects"),
+        'form_type': 'work_projects'
+    }
+    
+    return render(request, 'candidate/dynamic_form.html', context)

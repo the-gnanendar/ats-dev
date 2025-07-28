@@ -1,0 +1,27 @@
+{% load static %}
+{% load i18n %}
+{% load horillafilters %}
+
+<div class="oh-wrapper">
+    <div class="oh-checkpoint-badge mb-2" id="selectedInstances" data-ids="[]" data-clicked="" style="display:none;" >
+    </div>
+
+    <div class="d-flex flex-row-reverse">
+        <span class="m-1" onclick="$('[name=hired]').val('true'); $('[name=hired]').first().change(); $('.filterButton').click()" style="cursor: pointer;margin-left: 5px;">
+            <span class="oh-dot oh-dot--small me-1" style="background-color:yellowgreen"></span>
+            {% trans "Hired" %}
+        </span>
+        <span class="m-1" onclick="$('[name=canceled]').val('true'); $('[name=canceled]').first().change(); $('.filterButton').click()" style="cursor: pointer;margin-left: 5px;">
+            <span class="oh-dot oh-dot--small me-1" style="background-color:red"></span>
+            {% trans "Canceled" %}
+        </span>
+    </div>
+
+    <div id="section" hx-target="#section" hx-swap="innerHTML">
+        {% if view_type == 'list' %}
+            {% include 'candidate_application/candidate_application_list.html' %}
+        {% else %}
+            {% include 'candidate_application/candidate_application_card.html' %}
+        {% endif %}
+    </div>
+</div> 

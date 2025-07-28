@@ -138,6 +138,18 @@
                             >
                         </li>
                     {% endif %}
+                    {% if perms.recruitment.change_candidate or request.user.employee_get in stage.stage_managers.all %}
+                        <li class="oh-dropdown__item">
+                            <a
+                            class="oh-dropdown__link oh-dropdown__link--secondary"
+                            data-toggle="oh-modal-toggle"
+                            data-target="#createModal"
+                            hx-get="{% url 'candidate-skill-rating' cand.id %}?recruitment_id={{rec.id}}&stage_id={{stage.id}}"
+                            hx-target="#createTarget"
+                            >{% trans "Skill Rating" %}</a
+                            >
+                        </li>
+                    {% endif %}
                     {% if check_candidate_self_tracking %}
                         {% if perms.recruitment.add_candidatedocumentrequest or request.user.employee_get in stage.stage_managers.all or request.user.employee_get in rec.recruitment_managers.all %}
                             <li class="oh-dropdown__item">

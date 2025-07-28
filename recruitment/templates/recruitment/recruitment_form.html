@@ -10,9 +10,35 @@
             dynamicskills.click();
         }
     }
+    function technicalSkillChange(selectElement) {
+        var selectedSkill = selectElement.val();
+        var parentForm = selectElement.parents().closest("form");
+        if (selectedSkill && selectedSkill.includes("create")) {
+            let dynamicTechnicalSkills = $("#dynamicTechnicalSkills");
+            var view = parentForm.serialize();
+            dynamicTechnicalSkills.attr("hx-vals", `{"data":"${view}"}`);
+            dynamicTechnicalSkills.click();
+        }
+    }
+    function nonTechnicalSkillChange(selectElement) {
+        var selectedSkill = selectElement.val();
+        var parentForm = selectElement.parents().closest("form");
+        if (selectedSkill && selectedSkill.includes("create")) {
+            let dynamicNonTechnicalSkills = $("#dynamicNonTechnicalSkills");
+            var view = parentForm.serialize();
+            dynamicNonTechnicalSkills.attr("hx-vals", `{"data":"${view}"}`);
+            dynamicNonTechnicalSkills.click();
+        }
+    }
     $(document).ready(function(){
         $("[name= 'skills']").on("change", function(){
             skillChange($(this))
+        })
+        $("[name= 'technical_skills']").on("change", function(){
+            technicalSkillChange($(this))
+        })
+        $("[name= 'non_technical_skills']").on("change", function(){
+            nonTechnicalSkillChange($(this))
         })
     });
     {% if dynamic %}
@@ -34,6 +60,14 @@
             return $option;
         }
         $('[name = "skills"]').select2({
+            templateResult: formatOption,
+            templateSelection: formatOption
+        });
+        $('[name = "technical_skills"]').select2({
+            templateResult: formatOption,
+            templateSelection: formatOption
+        });
+        $('[name = "non_technical_skills"]').select2({
             templateResult: formatOption,
             templateSelection: formatOption
         });
@@ -80,13 +114,26 @@
                     >
                     {{form.title}} {{form.title.errors}}
                 </div>
+
+                
+                <!-- Job Description Sections -->
                 <div class="col-12 col-sm-12 col-md-12 col-lg-12">
-                    <label
-                        class="oh-label required-star"
-                        for="{{form.description.id_for_label}}"
-                        >{{form.description.label}}</label
+                    <label class="oh-label" for="{{form.job_summary.id_for_label}}"
+                        >{{form.job_summary.label}}</label
                     >
-                    {{form.description}} {{form.description.errors}}
+                    {{form.job_summary}} {{form.job_summary.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                    <label class="oh-label" for="{{form.key_responsibilities.id_for_label}}"
+                        >{{form.key_responsibilities.label}}</label
+                    >
+                    {{form.key_responsibilities}} {{form.key_responsibilities.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                    <label class="oh-label" for="{{form.preferred_qualifications.id_for_label}}"
+                        >{{form.preferred_qualifications.label}}</label
+                    >
+                    {{form.preferred_qualifications}} {{form.preferred_qualifications.errors}}
                 </div>
                 <div
                     class="col-12 col-sm-12 col-md-12 col-lg-6"
@@ -108,6 +155,38 @@
                     {{form.recruitment_managers}}
                     {{form.recruitment_managers.errors}}
                 </div>
+                
+                <!-- Default Stage Manager -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6">
+                    <label class="oh-label" for="{{form.default_stage_manager.id_for_label}}"
+                        >{{form.default_stage_manager.label}}</label
+                    >
+                    {{form.default_stage_manager}}
+                    {{form.default_stage_manager.errors}}
+                </div>
+                
+                <!-- Interviewer Assignments -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.l1_interviewer.id_for_label}}"
+                        >{{form.l1_interviewer.label}}</label
+                    >
+                    {{form.l1_interviewer}}
+                    {{form.l1_interviewer.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.l2_interviewer.id_for_label}}"
+                        >{{form.l2_interviewer.label}}</label
+                    >
+                    {{form.l2_interviewer}}
+                    {{form.l2_interviewer.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.l3_interviewer.id_for_label}}"
+                        >{{form.l3_interviewer.label}}</label
+                    >
+                    {{form.l3_interviewer}}
+                    {{form.l3_interviewer.errors}}
+                </div>
                 <div class="col-12 col-sm-12 col-md-12 col-lg-6">
                     <label class="oh-label" for="{{form.start_date.id_for_label}}"
                         >{{form.start_date.label}}</label
@@ -126,6 +205,76 @@
                     >
                     {{form.vacancy}} {{form.vacancy.errors}}
                 </div>
+                
+                <!-- Salary Range -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.salary_min.id_for_label}}"
+                        >{{form.salary_min.label}}</label
+                    >
+                    {{form.salary_min}} {{form.salary_min.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.salary_max.id_for_label}}"
+                        >{{form.salary_max.label}}</label
+                    >
+                    {{form.salary_max}} {{form.salary_max.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.salary_currency.id_for_label}}"
+                        >{{form.salary_currency.label}}</label
+                    >
+                    {{form.salary_currency}} {{form.salary_currency.errors}}
+                </div>
+                
+                <!-- Employment Type -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6">
+                    <label class="oh-label" for="{{form.employment_type.id_for_label}}"
+                        >{{form.employment_type.label}}</label
+                    >
+                    {{form.employment_type}} {{form.employment_type.errors}}
+                </div>
+                
+                <!-- Location Details -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6">
+                    <label class="oh-label" for="{{form.work_location.id_for_label}}"
+                        >{{form.work_location.label}}</label
+                    >
+                    {{form.work_location}} {{form.work_location.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6">
+                    <label class="oh-label" for="{{form.remote_policy.id_for_label}}"
+                        >{{form.remote_policy.label}}</label
+                    >
+                    {{form.remote_policy}} {{form.remote_policy.errors}}
+                </div>
+                
+                <!-- Experience Requirements -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.min_experience_years.id_for_label}}"
+                        >{{form.min_experience_years.label}}</label
+                    >
+                    {{form.min_experience_years}} {{form.min_experience_years.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.max_experience_years.id_for_label}}"
+                        >{{form.max_experience_years.label}}</label
+                    >
+                    {{form.max_experience_years}} {{form.max_experience_years.errors}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-4">
+                    <label class="oh-label" for="{{form.required_education_level.id_for_label}}"
+                        >{{form.required_education_level.label}}</label
+                    >
+                    {{form.required_education_level}} {{form.required_education_level.errors}}
+                </div>
+                
+                <!-- Application Deadline -->
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6">
+                    <label class="oh-label" for="{{form.application_deadline.id_for_label}}"
+                        >{{form.application_deadline.label}}</label
+                    >
+                    {{form.application_deadline}} {{form.application_deadline.errors}}
+                </div>
                 <div class="col-12 col-sm-12 col-md-12 col-lg-6">
                     <label class="oh-label" for="{{form.company_id.id_for_label}}"
                         >{{form.company_id.label}}</label
@@ -141,10 +290,16 @@
                     {{form.survey_templates}}
                 </div>
                 <div class="col-12 col-sm-12 col-md-12 col-lg-6">
-                    <label class="oh-label" for="{{form.skills.id_for_label}}"
-                        >{{form.skills.label}}</label
+                    <label class="oh-label" for="{{form.technical_skills.id_for_label}}"
+                        >{{form.technical_skills.label}}</label
                     >
-                    {{form.skills}}
+                    {{form.technical_skills}}
+                </div>
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6">
+                    <label class="oh-label" for="{{form.non_technical_skills.id_for_label}}"
+                        >{{form.non_technical_skills.label}}</label
+                    >
+                    {{form.non_technical_skills}}
                 </div>
                     <div class="col-12 col-sm-12 col-md-12 col-lg-6">
                         <label class="oh-label" for="{{form.publish_in_linkedin.id_for_label}}"

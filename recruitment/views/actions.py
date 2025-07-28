@@ -182,8 +182,8 @@ def stage_delete(request, stage_id):
             if len(all_this_manger) == 1:
                 view_recruitment = Permission.objects.get(codename="view_recruitment")
                 manager.employee_user_id.user_permissions.remove(view_recruitment.id)
-            initial_stage_manager = all_this_manger.filter(stage_type="initial")
-            if len(initial_stage_manager) == 1:
+            sourced_stage_manager = all_this_manger.filter(stage_type="sourced")
+            if len(sourced_stage_manager) == 1:
                 add_candidate = Permission.objects.get(codename="add_candidate")
                 change_candidate = Permission.objects.get(codename="change_candidate")
                 manager.employee_user_id.user_permissions.remove(add_candidate.id)
@@ -342,6 +342,53 @@ def remove_stage_manager(request, mid, sid):
     )
     stage_obj.stage_managers.remove(manager)
     messages.success(request, _("Stage manager removed successfully."))
+    stages = Stage.objects.all()
+    stages = stages.filter(recruitment_id__is_active=True)
+    recruitments = group_by_queryset(
+        stages,
+        "recruitment_id",
+        request.GET.get("rpage"),
+    )
+    filter_obj = StageFilter()
+    form = StageCreationForm()
+    previous_data = request.GET.urlencode()
+    return render(
+        request,
+        "stage/stage_group.html",
+        {
+            "data": paginator_qry(stages, request.GET.get("page")),
+            "pd": previous_data,
+            "form": form,
+            "f": filter_obj,
+            "recruitments": recruitments,
+        },
+    )
+
+
+@login_required
+@manager_can_enter(perm="recruitment.change_stage")
+def remove_stage_interviewer(request, mid, sid):
+    """
+    This method is used to remove selected stage interviewer
+    Args:
+        mid : interviewer_id in the stage
+        sid : stage_id
+    """
+    stage_obj = Stage.objects.get(id=sid)
+    interviewer = Employee.objects.get(id=mid)
+    notify.send(
+        request.user.employee_get,
+        recipient=interviewer.employee_user_id,
+        verb=f"You are removed from stage interviewers from stage {stage_obj}",
+        verb_ar=f"تمت إزالتك من مقابلات المرحلة من المرحلة {stage_obj}",
+        verb_de=f"Sie wurden als Bühneninterviewer von der Stufe {stage_obj} entfernt",
+        verb_es=f"Has sido eliminado/a de los entrevistadores de etapa de la etapa {stage_obj}",
+        verb_fr=f"Vous avez été supprimé(e) en tant qu'intervieweur d'étape de l'étape {stage_obj}",
+        icon="person-remove",
+        redirect="",
+    )
+    stage_obj.stage_interviewers.remove(interviewer)
+    messages.success(request, _("Stage interviewer removed successfully."))
     stages = Stage.objects.all()
     stages = stages.filter(recruitment_id__is_active=True)
     recruitments = group_by_queryset(

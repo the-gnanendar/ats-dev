@@ -1,0 +1,95 @@
+{% load static %}
+{% load i18n %}
+{% load horillafilters %}
+
+<div class="oh-wrapper">
+    <div class="row">
+        {% for app in candidate_applications %}
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-3">
+            <div class="oh-card">
+                <div class="oh-card__header">
+                    <div class="oh-card__avatar">
+                        {% if app.profile %}
+                            <img src="{{ app.profile.url }}" 
+                                 alt="{{ app.name }}" 
+                                 class="oh-card__avatar-img">
+                        {% else %}
+                            <div class="oh-card__avatar-placeholder">
+                                {{ app.name|first|upper }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="oh-card__title">
+                        <h4 class="oh-card__name">{{ app.name }}</h4>
+                        <p class="oh-card__email">{{ app.email }}</p>
+                    </div>
+                </div>
+                <div class="oh-card__body">
+                    <div class="oh-card__info">
+                        {% if app.recruitment_id %}
+                            <div class="oh-card__info-item">
+                                <span class="oh-card__label">{% trans "Recruitment" %}:</span>
+                                <span class="oh-card__value">{{ app.recruitment_id.title }}</span>
+                            </div>
+                        {% endif %}
+                        {% if app.job_position_id %}
+                            <div class="oh-card__info-item">
+                                <span class="oh-card__label">{% trans "Position" %}:</span>
+                                <span class="oh-card__value">{{ app.job_position_id.job_position }}</span>
+                            </div>
+                        {% endif %}
+                        {% if app.stage_id %}
+                            <div class="oh-card__info-item">
+                                <span class="oh-card__label">{% trans "Stage" %}:</span>
+                                <span class="oh-badge oh-badge--{{ app.stage_id.stage_type }}">
+                                    {{ app.stage_id.stage }}
+                                </span>
+                            </div>
+                        {% endif %}
+                        <div class="oh-card__info-item">
+                            <span class="oh-card__label">{% trans "Status" %}:</span>
+                            {% if app.hired %}
+                                <span class="oh-badge oh-badge--success">{% trans "Hired" %}</span>
+                            {% elif app.canceled %}
+                                <span class="oh-badge oh-badge--danger">{% trans "Canceled" %}</span>
+                            {% elif app.converted %}
+                                <span class="oh-badge oh-badge--warning">{% trans "Converted" %}</span>
+                            {% else %}
+                                <span class="oh-badge oh-badge--secondary">{% trans "Active" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="oh-card__footer">
+                    <div class="oh-btn-group">
+                        <a href="{% url 'candidate-application-view-individual' app.id %}" 
+                           class="oh-btn oh-btn--sm oh-btn--light" 
+                           title="{% trans 'View Details' %}">
+                            <ion-icon name="eye-outline"></ion-icon>
+                        </a>
+                        <a href="{% url 'candidate-application-update' app.id %}" 
+                           class="oh-btn oh-btn--sm oh-btn--info" 
+                           title="{% trans 'Edit' %}">
+                            <ion-icon name="create-outline"></ion-icon>
+                        </a>
+                        {% if not app.converted_employee_id and not app.email in existing_emails %}
+                            <a href="{% url 'candidate-application-conversion' app.id %}" 
+                               class="oh-btn oh-btn--sm oh-btn--success"
+                               onclick="return confirm('{% trans 'Convert this application to employee?' %}')"
+                               title="{% trans 'Convert to Employee' %}">
+                                <ion-icon name="person-add-outline"></ion-icon>
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'candidate-application-archive' app.id %}" 
+                           class="oh-btn oh-btn--sm oh-btn--warning"
+                           onclick="return confirm('{% trans 'Archive this application?' %}')"
+                           title="{% trans 'Archive' %}">
+                            <ion-icon name="archive-outline"></ion-icon>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div> 

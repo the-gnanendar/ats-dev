@@ -39,6 +39,11 @@ SUBMENUS = [
         "accessibility": "recruitment.sidebar.candidates_accessibility",
     },
     {
+        "menu": _("Candidate Applications"),
+        "redirect": reverse("candidate-application-view"),
+        "accessibility": "recruitment.sidebar.candidate_applications_accessibility",
+    },
+    {
         "menu": _("Interview"),
         "redirect": reverse("interview-view"),
         "accessibility": "recruitment.sidebar.interview_accessibility",
@@ -85,6 +90,12 @@ def candidates_accessibility(
     request, _submenu: dict = {}, user_perms: PermWrapper = [], *args, **kwargs
 ) -> bool:
     return request.user.has_perm("recruitment.view_candidate")
+
+
+def candidate_applications_accessibility(
+    request, _submenu: dict = {}, user_perms: PermWrapper = [], *args, **kwargs
+) -> bool:
+    return request.user.has_perm("recruitment.view_candidateapplication")
 
 
 def survey_accessibility(

@@ -1,0 +1,158 @@
+{% extends 'index.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<div class="oh-wrapper">
+  <div class="oh-main__titlebar oh-main__titlebar--left">
+    <h1 class="oh-main__titlebar-title fw-bold">
+      {% trans "Delete Candidate Application" %}
+    </h1>
+  </div>
+
+  <div class="oh-general__tab-container oh-user-select-container">
+    <div class="oh-general__tab-target">
+      <div class="oh-card">
+        <div class="oh-card__body">
+          <div class="oh-alert oh-alert--warning">
+            <div class="oh-alert__icon">
+              <ion-icon name="warning-outline"></ion-icon>
+            </div>
+            <div class="oh-alert__content">
+              <h6 class="oh-alert__title">{% trans "Warning" %}</h6>
+              <p class="oh-alert__text">
+                {% trans "This action cannot be undone. All associated data including interviews, notes, and stage history will be permanently deleted." %}
+              </p>
+            </div>
+          </div>
+
+          <div class="oh-modal__dialog-info">
+            <div class="oh-modal__dialog-info-item">
+              <span class="oh-modal__dialog-info-label">{% trans "Name" %}:</span>
+              <span class="oh-modal__dialog-info-value">{{ candidate_app.name }}</span>
+            </div>
+            <div class="oh-modal__dialog-info-item">
+              <span class="oh-modal__dialog-info-label">{% trans "Email" %}:</span>
+              <span class="oh-modal__dialog-info-value">{{ candidate_app.email }}</span>
+            </div>
+            {% if candidate_app.recruitment_id %}
+            <div class="oh-modal__dialog-info-item">
+              <span class="oh-modal__dialog-info-label">{% trans "Recruitment" %}:</span>
+              <span class="oh-modal__dialog-info-value">{{ candidate_app.recruitment_id.title }}</span>
+            </div>
+            {% endif %}
+            {% if candidate_app.job_position_id %}
+            <div class="oh-modal__dialog-info-item">
+              <span class="oh-modal__dialog-info-label">{% trans "Position" %}:</span>
+              <span class="oh-modal__dialog-info-value">{{ candidate_app.job_position_id.job_position }}</span>
+            </div>
+            {% endif %}
+            {% if candidate_app.stage_id %}
+            <div class="oh-modal__dialog-info-item">
+              <span class="oh-modal__dialog-info-label">{% trans "Current Stage" %}:</span>
+              <span class="oh-modal__dialog-info-value">
+                <span class="oh-badge oh-badge--{{ candidate_app.stage_id.stage_type }}">
+                  {{ candidate_app.stage_id.stage }}
+                </span>
+              </span>
+            </div>
+            {% endif %}
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            <div class="oh-modal__dialog-footer">
+              <a href="{% url 'candidate-application-view' %}" class="oh-btn oh-btn--light">
+                {% trans "Cancel" %}
+              </a>
+              <button type="submit" class="oh-btn oh-btn--danger">
+                <ion-icon name="trash-outline"></ion-icon>
+                {% trans "Delete Application" %}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.oh-modal__dialog-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 0.375rem;
+  border: 1px solid #e9ecef;
+}
+
+.oh-modal__dialog-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.oh-modal__dialog-info-item:last-child {
+  margin-bottom: 0;
+}
+
+.oh-modal__dialog-info-label {
+  font-weight: 500;
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.oh-modal__dialog-info-value {
+  font-size: 0.875rem;
+  color: #212529;
+  text-align: right;
+}
+
+.oh-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  margin: 1rem 0;
+}
+
+.oh-alert--warning {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+}
+
+.oh-alert__icon {
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  color: #f39c12;
+}
+
+.oh-alert__content {
+  flex: 1;
+}
+
+.oh-alert__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+}
+
+.oh-alert__text {
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.oh-modal__dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+</style>
+{% endblock %} 

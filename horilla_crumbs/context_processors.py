@@ -175,7 +175,7 @@ remove_urls = [
     "objective-detailed-view",
     "ticket-detail",
     "faq-view",
-    "get-job-positions",
+            "recruitment-get-job-positions",
 ]
 
 user_breadcrumbs = {}

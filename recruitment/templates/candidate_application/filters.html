@@ -1,0 +1,146 @@
+{% load i18n %}
+{% load static %}
+
+<div class="oh-dropdown__filter-body">
+  <div class="oh-accordion">
+    <div class="oh-accordion-header">{% trans 'Candidate Information' %}</div>
+    <div class="oh-accordion-body">
+      <div class="row">
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.name.id_for_label}}">{% trans 'Name' %}</label>
+            {{ filter_obj.form.name }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.email.id_for_label}}">{% trans 'Email' %}</label>
+            {{ filter_obj.form.email }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.mobile.id_for_label}}">{% trans 'Mobile' %}</label>
+            {{ filter_obj.form.mobile }}
+          </div>
+        </div>
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.recruitment.id_for_label}}">{% trans 'Recruitment' %}</label>
+            {{ filter_obj.form.recruitment }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.job_position_id.id_for_label}}">{% trans 'Job Position' %}</label>
+            {{ filter_obj.form.job_position_id }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.stage_id.id_for_label}}">{% trans 'Stage' %}</label>
+            {{ filter_obj.form.stage_id }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="oh-dropdown__filter-body">
+  <div class="oh-accordion">
+    <div class="oh-accordion-header">{% trans 'Application Status' %}</div>
+    <div class="oh-accordion-body">
+      <div class="row">
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.hired.id_for_label}}">{% trans 'Hired' %}</label>
+            {{ filter_obj.form.hired }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.canceled.id_for_label}}">{% trans 'Canceled' %}</label>
+            {{ filter_obj.form.canceled }}
+          </div>
+        </div>
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.converted.id_for_label}}">{% trans 'Converted' %}</label>
+            {{ filter_obj.form.converted }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.is_active.id_for_label}}">{% trans 'Is Active' %}</label>
+            {{ filter_obj.form.is_active }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="oh-dropdown__filter-body">
+  <div class="oh-accordion">
+    <div class="oh-accordion-header">{% trans 'Interview & Dates' %}</div>
+    <div class="oh-accordion-body">
+      <div class="row">
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.interview_date.id_for_label}}">{% trans 'Interview Date' %}</label>
+            {{ filter_obj.form.interview_date }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.scheduled_from.id_for_label}}">{% trans 'Scheduled From' %}</label>
+            {{ filter_obj.form.scheduled_from }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.scheduled_till.id_for_label}}">{% trans 'Scheduled Till' %}</label>
+            {{ filter_obj.form.scheduled_till }}
+          </div>
+        </div>
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.hired_date.id_for_label}}">{% trans 'Hired Date' %}</label>
+            {{ filter_obj.form.hired_date }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.start_date.id_for_label}}">{% trans 'Start Date' %}</label>
+            {{ filter_obj.form.start_date }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.end_date.id_for_label}}">{% trans 'End Date' %}</label>
+            {{ filter_obj.form.end_date }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="oh-dropdown__filter-body">
+  <div class="oh-accordion">
+    <div class="oh-accordion-header">{% trans 'Advanced' %}</div>
+    <div class="oh-accordion-body">
+      <div class="row">
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.probation_end.id_for_label}}">{% trans 'Probation End' %}</label>
+            {{ filter_obj.form.probation_end }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.probation_end_from.id_for_label}}">{% trans 'Probation End From' %}</label>
+            {{ filter_obj.form.probation_end_from }}
+          </div>
+        </div>
+        <div class="col-sm-12 col-md-12 col-lg-6">
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.probation_end_till.id_for_label}}">{% trans 'Probation End Till' %}</label>
+            {{ filter_obj.form.probation_end_till }}
+          </div>
+          <div class="oh-input-group">
+            <label class="oh-label" for="{{filter_obj.form.schedule_date.id_for_label}}">{% trans 'Schedule Date' %}</label>
+            {{ filter_obj.form.schedule_date }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="oh-dropdown__filter-actions">
+  <button class="oh-btn oh-btn--secondary oh-btn--small filterButton" type="submit">
+    <ion-icon name="search-outline" class="me-1"></ion-icon>{% trans "Filter" %}
+  </button>
+</div>
+
+<script src="{% static '/base/filter.js' %}"></script> 

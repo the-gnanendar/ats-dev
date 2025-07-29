@@ -24,11 +24,6 @@ SUBMENUS = [
         "redirect": reverse("recruitment-dashboard"),
     },
     {
-        "menu": _("Recruitment Pipeline"),
-        "redirect": reverse("pipeline"),
-        "accessibility": "recruitment.sidebar.pipeline_accessibility",
-    },
-    {
         "menu": _("Recruitment Survey"),
         "redirect": reverse("recruitment-survey-question-template-view"),
         "accessibility": "recruitment.sidebar.survey_accessibility",

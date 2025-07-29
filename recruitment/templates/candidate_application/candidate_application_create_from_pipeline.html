@@ -1,0 +1,73 @@
+{% extends 'index.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper mt-5" id="section">
+    <form method="post" class="oh-general__tab-target oh-profile-section mb-4">
+        {% csrf_token %}
+        <div class="oh-profile-section__card">
+            <div id="personalMessage">
+                {% if messages %}
+                <div class="oh-alert-container">
+                    {% for message in messages %}
+                    <div class="oh-alert oh-alert--animated {{message.tags}}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Recruitment and Job Position Info (Read-only) -->
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label">{% trans "Recruitment" %}</label>
+                        <input type="text" class="oh-input w-100" value="{{ recruitment.title }}" readonly>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label">{% trans "Job Position" %}</label>
+                        <input type="text" class="oh-input w-100" value="{{ job_position.job_position }}" readonly>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Stage Info -->
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="oh-input__group">
+                        <label class="oh-label">{% trans "Stage" %}</label>
+                        <input type="text" class="oh-input w-100" value="{{ stage.stage }}" readonly>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="oh-input__group">
+                        <label class="oh-label required-star" for="{{form.candidates.id_for_label}}" 
+                               title="{{ form.candidates.help_text|safe }}">
+                            {{ form.candidates.label }}
+                        </label>
+                        {{ form.candidates }}
+                        {{ form.candidates.errors }}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Hidden fields for recruitment and job position -->
+            <input type="hidden" name="recruitment" value="{{ recruitment.id }}">
+            <input type="hidden" name="job_position" value="{{ job_position.id }}">
+            
+            <div class="w-100 d-flex align-items-center justify-content-end">
+                <button type="submit" class="oh-btn oh-btn--secondary oh-btn--w-100-resp">
+                    {% trans "Add Candidates to Stage" %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %} 

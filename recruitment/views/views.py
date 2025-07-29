@@ -269,6 +269,32 @@ def recruitment(request):
             recruitment_obj.open_positions.set(
                 JobPosition.objects.filter(id__in=form.data.getlist("open_positions"))
             )
+            
+            # Assign stage managers and interviewers from form data
+            recruitment_obj.default_stage_manager.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("default_stage_manager")
+                )
+            )
+            recruitment_obj.l1_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l1_interviewer")
+                )
+            )
+            recruitment_obj.l2_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l2_interviewer")
+                )
+            )
+            recruitment_obj.l3_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l3_interviewer")
+                )
+            )
+            
+            # Create default stages with automatic assignments
+            recruitment_obj.create_default_stages()
+            
             if (
                 recruitment_obj.publish_in_linkedin
                 and recruitment_obj.linkedin_account_id
@@ -279,7 +305,7 @@ def recruitment(request):
             for survey in form.cleaned_data["survey_templates"]:
                 for sur in survey.recruitmentsurvey_set.all():
                     sur.recruitment_ids.add(recruitment_obj)
-            messages.success(request, _("Recruitment added."))
+            messages.success(request, _("Recruitment added with default stages."))
             with contextlib.suppress(Exception):
                 managers = recruitment_obj.recruitment_managers.select_related(
                     "employee_user_id"
@@ -375,7 +401,33 @@ def recruitment_update(request, rec_id):
             for survey in form.cleaned_data["survey_templates"]:
                 for sur in survey.recruitmentsurvey_set.all():
                     sur.recruitment_ids.add(recruitment_obj)
+            
+            # Update stage managers and interviewers from form data
+            recruitment_obj.default_stage_manager.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("default_stage_manager")
+                )
+            )
+            recruitment_obj.l1_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l1_interviewer")
+                )
+            )
+            recruitment_obj.l2_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l2_interviewer")
+                )
+            )
+            recruitment_obj.l3_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l3_interviewer")
+                )
+            )
             recruitment_obj.save()
+            
+            # Update existing stages with new assignments
+            recruitment_obj.update_stage_assignments()
+            
             if len(form.changed_data) > 0:
                 if (
                     recruitment_obj.publish_in_linkedin
@@ -385,7 +437,7 @@ def recruitment_update(request, rec_id):
                     post_recruitment_in_linkedin(
                         request, recruitment_obj, recruitment_obj.linkedin_account_id
                     )
-            messages.success(request, _("Recruitment Updated."))
+            messages.success(request, _("Recruitment Updated with stage assignments."))
             response = render(
                 request, "recruitment/recruitment_form.html", {"form": form}
             )
@@ -437,11 +489,31 @@ def recruitment_pipeline(request):
     """
     This method is used to filter out candidate through pipeline structure
     """
-    filter_obj = RecruitmentFilter(
-        request.GET,
-    )
+    # Check if a specific recruitment_id is provided
+    recruitment_id = request.GET.get("recruitment_id")
+    
+    if recruitment_id:
+        # Filter to show only the specific recruitment
+        try:
+            specific_recruitment = Recruitment.objects.get(id=recruitment_id, is_active=True)
+            # Create filter with specific queryset
+            filtered_queryset = Recruitment.objects.filter(id=recruitment_id, is_active=True)
+            filter_obj = RecruitmentFilter(request.GET, queryset=filtered_queryset)
+        except Recruitment.DoesNotExist:
+            # If recruitment doesn't exist, redirect to recruitment view with error message
+            messages.error(request, _("The recruitment you are trying to view does not exist or is not active."))
+            return redirect("recruitment-view")
+    else:
+        # If no recruitment_id is provided, redirect to recruitment view with message
+        messages.warning(request, _("Please select a recruitment to view its pipeline."))
+        return redirect("recruitment-view")
+    
     if filter_obj.qs.exists():
-        template = "pipeline/pipeline.html"
+        # Force list view when viewing specific recruitment
+        if recruitment_id:
+            template = "pipeline/pipeline.html"
+        else:
+            template = "pipeline/pipeline.html"
     else:
         template = "pipeline/pipeline_empty.html"
     stage_filter = StageFilter(request.GET)
@@ -550,6 +622,53 @@ def get_stage_badge_count(request):
 
 
 @login_required
+@manager_can_enter(perm="recruitment.add_stage")
+def create_stage_ajax(request):
+    """
+    Create a new stage via AJAX and return stage data for dynamic tab creation
+    """
+    if request.method == "POST":
+        recruitment_id = request.POST.get("recruitment_id")
+        stage_name = request.POST.get("stage_name")
+        stage_type = request.POST.get("stage_type", "sourced")
+        
+        try:
+            recruitment = Recruitment.objects.get(id=recruitment_id)
+            
+            # Get the highest sequence number for this recruitment
+            max_sequence = Stage.objects.filter(recruitment_id=recruitment_id).aggregate(
+                models.Max('sequence')
+            )['sequence__max'] or 0
+            
+            # Create new stage
+            stage = Stage.objects.create(
+                recruitment_id=recruitment,
+                stage=stage_name,
+                stage_type=stage_type,
+                sequence=max_sequence + 1
+            )
+            
+            # Return stage data for dynamic tab creation
+            return JsonResponse({
+                'success': True,
+                'stage_data': {
+                    'recruitment_id': recruitment_id,
+                    'stage_id': stage.id,
+                    'stage_name': stage.stage,
+                    'sequence': stage.sequence,
+                    'stage_type': stage.stage_type
+                }
+            })
+            
+        except Recruitment.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Recruitment not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
 @manager_can_enter(perm="recruitment.view_recruitment")
 def stage_component(request, view: str = "list"):
     """
@@ -557,10 +676,20 @@ def stage_component(request, view: str = "list"):
     """
     recruitment_id = request.GET["rec_id"]
     recruitment = Recruitment.objects.get(id=recruitment_id)
-    ordered_stages = CACHE.get(request.session.session_key + "pipeline")[
-        "stages"
-    ].filter(recruitment_id__id=recruitment_id)
-    template = "pipeline/components/stages_tab_content.html"
+    
+    # Get cache data, handle case when cache is not available
+    cache_data = CACHE.get(request.session.session_key + "pipeline")
+    if cache_data is None:
+        # If cache is not available, get stages directly from database
+        from recruitment.models import Stage
+        ordered_stages = Stage.objects.filter(recruitment_id=recruitment_id).order_by('sequence')
+        filter_dict = {}
+    else:
+        # Use cached data
+        ordered_stages = cache_data["stages"].filter(recruitment_id__id=recruitment_id)
+        filter_dict = cache_data.get("filter_dict", {})
+    
+    template = "pipeline/components/stage_tabs.html"
     if view == "card":
         template = "pipeline/kanban_components/kanban_stage_components.html"
     return render(
@@ -569,9 +698,7 @@ def stage_component(request, view: str = "list"):
         {
             "rec": recruitment,
             "ordered_stages": ordered_stages,
-            "filter_dict": CACHE.get(request.session.session_key + "pipeline")[
-                "filter_dict"
-            ],
+            "filter_dict": filter_dict,
         },
     )
 
@@ -584,11 +711,17 @@ def update_candidate_stage_and_sequence(request):
     """
     order_list = request.GET.getlist("order")
     stage_id = request.GET["stage_id"]
-    stage = (
-        CACHE.get(request.session.session_key + "pipeline")["stages"]
-        .filter(id=stage_id)
-        .first()
-    )
+    
+    # Get cache data, handle case when cache is not available
+    cache_data = CACHE.get(request.session.session_key + "pipeline")
+    if cache_data is None:
+        # If cache is not available, get stage directly from database
+        from recruitment.models import Stage
+        stage = Stage.objects.filter(id=stage_id).first()
+    else:
+        # Use cached data
+        stage = cache_data["stages"].filter(id=stage_id).first()
+    
     context = {}
     
     for index, cand_app_id in enumerate(order_list):
@@ -600,7 +733,7 @@ def update_candidate_stage_and_sequence(request):
         except CandidateApplication.DoesNotExist:
             continue
     
-    if stage.stage_type == "selected":
+    if stage and stage.stage_type == "selected":
         if stage.recruitment_id.is_vacancy_filled():
             context["message"] = _("Vacancy is filled")
             context["vacancy"] = stage.recruitment_id.vacancy
@@ -616,11 +749,17 @@ def update_candidate_sequence(request):
     """
     order_list = request.GET.getlist("order")
     stage_id = request.GET["stage_id"]
-    stage = (
-        CACHE.get(request.session.session_key + "pipeline")["stages"]
-        .filter(id=stage_id)
-        .first()
-    )
+    
+    # Get cache data, handle case when cache is not available
+    cache_data = CACHE.get(request.session.session_key + "pipeline")
+    if cache_data is None:
+        # If cache is not available, get stage directly from database
+        from recruitment.models import Stage
+        stage = Stage.objects.filter(id=stage_id).first()
+    else:
+        # Use cached data
+        stage = cache_data["stages"].filter(id=stage_id).first()
+    
     data = {}
 
     for index, cand_app_id in enumerate(order_list):
@@ -652,20 +791,23 @@ def candidate_component(request):
     Candidate application component
     """
     stage_id = request.GET.get("stage_id")
-    stage = (
-        CACHE.get(request.session.session_key + "pipeline")["stages"]
-        .filter(id=stage_id)
-        .first()
-    )
-    candidate_applications = CACHE.get(request.session.session_key + "pipeline")[
-        "candidate_applications"
-    ].filter(stage_id=stage)
+    
+    # Get cache data, handle case when cache is not available
+    cache_data = CACHE.get(request.session.session_key + "pipeline")
+    if cache_data is None:
+        # If cache is not available, get data directly from database
+        from recruitment.models import Stage, CandidateApplication
+        stage = Stage.objects.filter(id=stage_id).first()
+        candidate_applications = CandidateApplication.objects.filter(stage_id=stage) if stage else CandidateApplication.objects.none()
+        filter_query = {"view": "list"}  # Default to list view
+    else:
+        # Use cached data
+        stage = cache_data["stages"].filter(id=stage_id).first()
+        candidate_applications = cache_data["candidate_applications"].filter(stage_id=stage)
+        filter_query = cache_data.get("filter_query", {"view": "list"})
 
     template = "pipeline/components/candidate_stage_component.html"
-    if (
-        CACHE.get(request.session.session_key + "pipeline")["filter_query"].get("view")
-        == "card"
-    ):
+    if filter_query.get("view") == "card":
         template = "pipeline/kanban_components/candidate_kanban_components.html"
 
     now = timezone.now()
@@ -792,6 +934,18 @@ def stage_update_pipeline(request, stage_id):
         form = StageCreationForm(request.POST, instance=stage_obj)
         if form.is_valid():
             stage_obj = form.save()
+            
+            # Handle stage managers
+            stage_obj.stage_managers.set(
+                Employee.objects.filter(id__in=form.data.getlist("stage_managers"))
+            )
+            
+            # Handle stage interviewers
+            stage_obj.stage_interviewers.set(
+                Employee.objects.filter(id__in=form.data.getlist("stage_interviewers"))
+            )
+            
+            stage_obj.save()
             messages.success(request, _("Stage updated."))
             with contextlib.suppress(Exception):
                 managers = stage_obj.stage_managers.select_related("employee_user_id")
@@ -831,7 +985,34 @@ def recruitment_update_pipeline(request, rec_id):
         form = RecruitmentCreationForm(request.POST, instance=recruitment_obj)
         if form.is_valid():
             recruitment_obj = form.save()
-            messages.success(request, _("Recruitment updated."))
+            
+            # Update stage managers and interviewers from form data
+            recruitment_obj.default_stage_manager.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("default_stage_manager")
+                )
+            )
+            recruitment_obj.l1_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l1_interviewer")
+                )
+            )
+            recruitment_obj.l2_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l2_interviewer")
+                )
+            )
+            recruitment_obj.l3_interviewer.set(
+                Employee.objects.filter(
+                    id__in=form.data.getlist("l3_interviewer")
+                )
+            )
+            recruitment_obj.save()
+            
+            # Update existing stages with new assignments
+            recruitment_obj.update_stage_assignments()
+            
+            messages.success(request, _("Recruitment updated with stage assignments."))
             with contextlib.suppress(Exception):
                 managers = recruitment_obj.recruitment_managers.select_related(
                     "employee_user_id"
@@ -1188,9 +1369,24 @@ def stage(request):
     """
     This method is used to create stages, also several permission assigned to the stage managers
     """
-    form = StageCreationForm(
-        initial={"recruitment_id": request.GET.get("recruitment_id")}
-    )
+    recruitment_id = request.GET.get("recruitment_id")
+    initial_data = {"recruitment_id": recruitment_id}
+    
+    # Pre-populate stage managers and interviewers based on recruitment
+    if recruitment_id:
+        try:
+            recruitment = Recruitment.objects.get(id=recruitment_id)
+            # Pre-populate default stage managers
+            if recruitment.default_stage_manager.exists():
+                initial_data["stage_managers"] = recruitment.default_stage_manager.all()
+            
+            # Pre-populate interviewers based on stage type (will be set after stage type is selected)
+            # This will be handled via JavaScript in the template
+        except Recruitment.DoesNotExist:
+            pass
+    
+    form = StageCreationForm(initial=initial_data)
+    
     if request.method == "POST":
         form = StageCreationForm(request.POST)
         if form.is_valid():
@@ -1198,8 +1394,18 @@ def stage(request):
             stage_obj.stage_managers.set(
                 Employee.objects.filter(id__in=form.data.getlist("stage_managers"))
             )
-            stage_obj.save()
+            
+            # Auto-assign interviewers based on stage type and recruitment settings
             recruitment_obj = stage_obj.recruitment_id
+            if stage_obj.stage_type == "l1_interview" and recruitment_obj.l1_interviewer.exists():
+                stage_obj.stage_interviewers.set(recruitment_obj.l1_interviewer.all())
+            elif stage_obj.stage_type == "l2_interview" and recruitment_obj.l2_interviewer.exists():
+                stage_obj.stage_interviewers.set(recruitment_obj.l2_interviewer.all())
+            elif stage_obj.stage_type == "l3_interview" and recruitment_obj.l3_interviewer.exists():
+                stage_obj.stage_interviewers.set(recruitment_obj.l3_interviewer.all())
+            
+            stage_obj.save()
+            
             rec_stages = (
                 Stage.objects.filter(recruitment_id=recruitment_obj, is_active=True)
                 .order_by("sequence")
@@ -1232,7 +1438,25 @@ def stage(request):
                 )
 
             return HttpResponse("<script>location.reload();</script>")
-    return render(request, "stage/stage_form.html", {"form": form})
+    
+    # Pass recruitment data to template for JavaScript
+    recruitment_data = None
+    if recruitment_id:
+        try:
+            recruitment = Recruitment.objects.get(id=recruitment_id)
+            recruitment_data = {
+                "id": recruitment.id,
+                "l1_interviewer": list(recruitment.l1_interviewer.values_list("id", flat=True)),
+                "l2_interviewer": list(recruitment.l2_interviewer.values_list("id", flat=True)),
+                "l3_interviewer": list(recruitment.l3_interviewer.values_list("id", flat=True)),
+            }
+        except Recruitment.DoesNotExist:
+            pass
+    
+    return render(request, "stage/stage_form.html", {
+        "form": form, 
+        "recruitment_data": recruitment_data
+    })
 
 
 @login_required
@@ -1300,7 +1524,19 @@ def stage_update(request, stage_id):
     if request.method == "POST":
         form = StageCreationForm(request.POST, instance=stages)
         if form.is_valid():
-            form.save()
+            stages = form.save()
+            
+            # Handle stage managers
+            stages.stage_managers.set(
+                Employee.objects.filter(id__in=form.data.getlist("stage_managers"))
+            )
+            
+            # Handle stage interviewers
+            stages.stage_interviewers.set(
+                Employee.objects.filter(id__in=form.data.getlist("stage_interviewers"))
+            )
+            
+            stages.save()
             messages.success(request, _("Stage updated."))
             response = render(
                 request, "recruitment/recruitment_form.html", {"form": form}
@@ -3226,6 +3462,24 @@ def skills_view(request):
 
 
 @login_required
+def technical_skills_view(request):
+    """
+    This function is used to view technical skills page in settings
+    """
+    technical_skills = TechnicalSkill.objects.all()
+    return render(request, "settings/skills/technical_skills_view.html", {"technical_skills": technical_skills})
+
+
+@login_required
+def non_technical_skills_view(request):
+    """
+    This function is used to view non-technical skills page in settings
+    """
+    non_technical_skills = NonTechnicalSkill.objects.all()
+    return render(request, "settings/skills/non_technical_skills_view.html", {"non_technical_skills": non_technical_skills})
+
+
+@login_required
 def create_skills(request):
     """
     This method is used to create the skills
@@ -3375,6 +3629,34 @@ def delete_skills(request):
     """
     This method is used to delete the skills
     """
+    if request.method == "POST":
+        skill_id = request.POST.get("skill_id")
+        skill_type = request.POST.get("skill_type")
+        
+        if skill_type == "technical":
+            try:
+                skill = TechnicalSkill.objects.get(id=skill_id)
+                skill.delete()
+                return JsonResponse({"success": True, "message": f"{skill.title} is deleted."})
+            except TechnicalSkill.DoesNotExist:
+                return JsonResponse({"success": False, "message": "Technical skill not found."})
+        elif skill_type == "non_technical":
+            try:
+                skill = NonTechnicalSkill.objects.get(id=skill_id)
+                skill.delete()
+                return JsonResponse({"success": True, "message": f"{skill.title} is deleted."})
+            except NonTechnicalSkill.DoesNotExist:
+                return JsonResponse({"success": False, "message": "Non-technical skill not found."})
+        else:
+            # Handle regular skills
+            ids = request.GET.getlist("ids")
+            skills = Skill.objects.filter(id__in=ids)
+            for skill in skills:
+                skill.delete()
+                messages.success(request, f"{skill.title} is deleted.")
+            return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/"))
+    
+    # Handle GET requests for regular skills (backward compatibility)
     ids = request.GET.getlist("ids")
     skills = Skill.objects.filter(id__in=ids)
     for skill in skills:

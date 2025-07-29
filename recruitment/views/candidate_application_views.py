@@ -27,7 +27,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
 from base.backends import ConfiguredEmailBackend
-from base.methods import get_pagination, sortby
+from base.methods import get_pagination, sortby, export_data
 from employee.models import Employee
 from horilla.decorators import hx_request_required, login_required, permission_required
 from notifications.signals import notify
@@ -43,6 +43,7 @@ from recruitment.forms import (
     StageNoteApplicationForm,
     SimpleCandidateApplicationForm,
     SimpleCandidateApplicationUpdateForm,
+    CandidateApplicationExportForm,
 )
 from recruitment.models import (
     CandidateApplication,
@@ -78,9 +79,22 @@ def candidate_application_create(request):
             try:
                 created_applications = form.save()
                 if created_applications:
+                    # Assign all created applications to the "sourced" stage
+                    for application in created_applications:
+                        recruitment = application.recruitment_id
+                        if recruitment:
+                            # Find the "sourced" stage for this recruitment
+                            sourced_stage = Stage.objects.filter(
+                                recruitment_id=recruitment,
+                                stage_type="sourced"
+                            ).first()
+                            if sourced_stage:
+                                application.stage_id = sourced_stage
+                                application.save()
+                    
                     messages.success(
                         request, 
-                        _("Successfully created {} candidate application(s).").format(len(created_applications))
+                        _("Successfully created {} candidate application(s) and assigned to sourced stage.").format(len(created_applications))
                     )
                 else:
                     messages.warning(
@@ -134,13 +148,24 @@ def candidate_application_view(request):
         [instance.id for instance in filter_obj.qs.filter(is_active=True)]
     )
     
+    # Group by fields for the dropdown
+    gp_fields = [
+        ("recruitment_id", _("Recruitment")),
+        ("stage_id", _("Stage")),
+        ("job_position_id", _("Job Position")),
+        ("hired", _("Hired")),
+        ("canceled", _("Canceled")),
+        ("converted", _("Converted")),
+        ("is_active", _("Is Active")),
+    ]
+    
     context = {
         "candidate_applications": candidate_applications,
         "pd": previous_data,
         "filter_obj": filter_obj,
         "requests_ids": requests_ids,
         "view_type": view_type,
-        "gp_fields": CandidateApplicationFilter._meta.fields,
+        "gp_fields": gp_fields,
         "recruitments": recruitments,
         "existing_emails": existing_emails,
     }
@@ -432,18 +457,46 @@ def candidate_application_delete(request, app_id):
     candidate_app = get_object_or_404(CandidateApplication, id=app_id)
     
     if request.method == "POST":
-        candidate_app.delete()
-        messages.success(request, _("Candidate application deleted successfully."))
-        return redirect("candidate-application-view")
+        try:
+            candidate_app.delete()
+            if request.headers.get('HX-Request'):
+                return JsonResponse({
+                    'status': 'success',
+                    'message': _("Candidate application deleted successfully.")
+                })
+            else:
+                messages.success(request, _("Candidate application deleted successfully."))
+                return redirect("candidate-application-view")
+        except Exception as e:
+            if request.headers.get('HX-Request'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': _("Error deleting candidate application: {}").format(str(e))
+                }, status=400)
+            else:
+                messages.error(request, _("Error deleting candidate application: {}").format(str(e)))
+                return redirect("candidate-application-view")
     
-    context = {
-        "candidate_app": candidate_app,
-    }
-    return render(
-        request, 
-        "candidate_application/candidate_application_delete_form.html", 
-        context
-    )
+    # For GET requests, return the delete confirmation modal
+    if request.headers.get('HX-Request'):
+        context = {
+            "candidate_app": candidate_app,
+        }
+        return render(
+            request, 
+            "candidate_application/candidate_application_delete_modal.html", 
+            context
+        )
+    else:
+        # Fallback for non-AJAX requests
+        context = {
+            "candidate_app": candidate_app,
+        }
+        return render(
+            request, 
+            "candidate_application/candidate_application_delete_form.html", 
+            context
+        )
 
 
 @login_required
@@ -465,29 +518,21 @@ def candidate_application_export(request):
     """
     This method is used to export candidate application data
     """
-    selected_columns = request.GET.getlist("selected_fields")
-    candidate_applications = CandidateApplicationFilter(
-        request.GET, 
-        queryset=CandidateApplication.objects.filter(is_active=True)
-    ).qs
-    
-    # Export logic here - can be CSV, Excel, etc.
-    # For now, just return the data as JSON
-    data = []
-    for app in candidate_applications:
-        app_data = {
-            "name": app.name,
-            "email": app.email,
-            "mobile": app.mobile,
-            "recruitment": app.recruitment_id.title if app.recruitment_id else "",
-            "job_position": app.job_position_id.job_position if app.job_position_id else "",
-            "stage": app.stage_id.stage if app.stage_id else "",
-            "hired": app.hired,
-            "canceled": app.canceled,
+    if request.META.get("HTTP_HX_REQUEST"):
+        export_column = CandidateApplicationExportForm()
+        export_filter = CandidateApplicationFilter()
+        content = {
+            "export_filter": export_filter,
+            "export_column": export_column,
         }
-        data.append(app_data)
-    
-    return JsonResponse({"data": data})
+        return render(request, "candidate_application/export_filter.html", context=content)
+    return export_data(
+        request=request,
+        model=CandidateApplication,
+        filter_class=CandidateApplicationFilter,
+        form_class=CandidateApplicationExportForm,
+        file_name="Candidate_Application_export",
+    )
 
 
 @login_required
@@ -508,6 +553,7 @@ def candidate_application_search(request):
     """
     This method is used to search candidate applications
     """
+    previous_data = request.environ["QUERY_STRING"]
     search_query = request.GET.get("search", "")
     candidate_applications = CandidateApplication.objects.filter(is_active=True)
     
@@ -519,11 +565,45 @@ def candidate_application_search(request):
             Q(stage_id__stage__icontains=search_query)
         )
     
+    # Apply filters
+    filter_obj = CandidateApplicationFilter(request.GET, queryset=candidate_applications)
+    candidate_applications = filter_obj.qs
+    
+    # Sort and paginate
+    candidate_applications = sortby(request, candidate_applications, "orderby")
+    candidate_applications = paginator_qry(candidate_applications, request.GET.get("page"))
+    
+    # Get emails that already exist as users
+    mails = list(CandidateApplication.objects.values_list("email", flat=True))
+    existing_emails = list(
+        User.objects.filter(username__in=mails).values_list("email", flat=True)
+    )
+    
+    # Group by fields for the dropdown
+    gp_fields = [
+        ("recruitment_id", _("Recruitment")),
+        ("stage_id", _("Stage")),
+        ("job_position_id", _("Job Position")),
+        ("hired", _("Hired")),
+        ("canceled", _("Canceled")),
+        ("converted", _("Converted")),
+        ("is_active", _("Is Active")),
+    ]
+    
+    # Determine template based on view parameter
+    template = "candidate_application/candidate_application_card.html"
+    if request.GET.get("view") == "list":
+        template = "candidate_application/candidate_application_list.html"
+    
     context = {
         "candidate_applications": candidate_applications,
-        "search_query": search_query,
+        "pd": previous_data,
+        "filter_obj": filter_obj,
+        "view_type": request.GET.get("view", "card"),
+        "existing_emails": existing_emails,
+        "gp_fields": gp_fields,
     }
-    return render(request, "candidate_application/search_results.html", context)
+    return render(request, template, context)
 
 
 @login_required
@@ -532,37 +612,47 @@ def candidate_application_filter_view(request):
     """
     This method is used to filter candidate applications
     """
-    field = request.GET.get("field")
-    recruitment_id = request.GET.get("recruitment_id")
-    stage_id = request.GET.get("stage_id")
-    candidate_id = request.GET.get("candidate_id")
-    job_position_id = request.GET.get("job_position_id")
-    is_active = request.GET.get("is_active")
-    hired = request.GET.get("hired")
-    converted = request.GET.get("converted")
-    canceled = request.GET.get("canceled")
-
-    filters = {}
-    if recruitment_id:
-        filters["recruitment_id"] = recruitment_id
-    if stage_id:
-        filters["stage_id"] = stage_id
-    if candidate_id:
-        filters["candidate_id"] = candidate_id
-    if job_position_id:
-        filters["job_position_id"] = job_position_id
-    if is_active:
-        filters["is_active"] = is_active
-    if hired:
-        filters["hired"] = hired
-    if converted:
-        filters["converted"] = converted
-    if canceled:
-        filters["canceled"] = canceled
-
-    queryset = CandidateApplication.objects.filter(**filters)
-    template = "candidate_application/candidate_application_list.html"
-    context = {"candidate_applications": queryset}
+    previous_data = request.environ["QUERY_STRING"]
+    
+    # Apply filters using the filter object
+    candidate_applications = CandidateApplication.objects.filter(is_active=True)
+    filter_obj = CandidateApplicationFilter(request.GET, queryset=candidate_applications)
+    candidate_applications = filter_obj.qs
+    
+    # Sort and paginate
+    candidate_applications = sortby(request, candidate_applications, "orderby")
+    candidate_applications = paginator_qry(candidate_applications, request.GET.get("page"))
+    
+    # Get emails that already exist as users
+    mails = list(CandidateApplication.objects.values_list("email", flat=True))
+    existing_emails = list(
+        User.objects.filter(username__in=mails).values_list("email", flat=True)
+    )
+    
+    # Group by fields for the dropdown
+    gp_fields = [
+        ("recruitment_id", _("Recruitment")),
+        ("stage_id", _("Stage")),
+        ("job_position_id", _("Job Position")),
+        ("hired", _("Hired")),
+        ("canceled", _("Canceled")),
+        ("converted", _("Converted")),
+        ("is_active", _("Is Active")),
+    ]
+    
+    # Determine template based on view parameter
+    template = "candidate_application/candidate_application_card.html"
+    if request.GET.get("view") == "list":
+        template = "candidate_application/candidate_application_list.html"
+    
+    context = {
+        "candidate_applications": candidate_applications,
+        "pd": previous_data,
+        "filter_obj": filter_obj,
+        "view_type": request.GET.get("view", "card"),
+        "existing_emails": existing_emails,
+        "gp_fields": gp_fields,
+    }
     return render(request, template, context)
 
 
@@ -591,3 +681,141 @@ def get_job_positions(request):
         return JsonResponse({'job_positions': job_positions_data})
     except Recruitment.DoesNotExist:
         return JsonResponse({'job_positions': []}) 
+
+
+@login_required
+@permission_required(perm="recruitment.add_candidateapplication")
+def candidate_application_create_from_pipeline(request):
+    """
+    This method is used to create candidate application from pipeline context
+    with pre-populated recruitment and job position
+    """
+    # Get stage_id from request
+    stage_id = request.GET.get('stage_id')
+    
+    if not stage_id:
+        messages.error(request, _("Stage ID is required."))
+        return redirect("candidate-application-view")
+    
+    try:
+        stage = Stage.objects.get(id=stage_id)
+        recruitment = stage.recruitment_id
+        job_position = recruitment.job_position_id
+        
+        # If recruitment doesn't have a job position, try to get it from open_positions
+        if not job_position and hasattr(recruitment, 'open_positions') and recruitment.open_positions.exists():
+            job_position = recruitment.open_positions.first()
+            
+    except Stage.DoesNotExist:
+        messages.error(request, _("Stage not found."))
+        return redirect("candidate-application-view")
+    
+    # Create form with pre-populated context
+    form = SimpleCandidateApplicationForm()
+    
+    # Pre-populate recruitment and job position
+    form.fields['recruitment'].initial = recruitment.id
+    form.fields['job_position'].initial = job_position.id if job_position else None
+    
+    # Make recruitment and job position readonly since we're in pipeline context
+    form.fields['recruitment'].widget.attrs['readonly'] = 'readonly'
+    form.fields['job_position'].widget.attrs['readonly'] = 'readonly'
+    form.fields['recruitment'].widget.attrs['class'] = 'oh-input w-100'
+    form.fields['job_position'].widget.attrs['class'] = 'oh-input w-100'
+    
+    if request.method == "POST":
+        form = SimpleCandidateApplicationForm(request.POST)
+        
+        # Pre-populate the form data with recruitment and job position
+        if form.is_valid():
+            # Override recruitment and job position with pipeline context
+            form.cleaned_data['recruitment'] = recruitment
+            form.cleaned_data['job_position'] = job_position
+        else:
+            # If form is invalid, try to fix the recruitment and job position fields
+            # and re-validate
+            
+            if 'recruitment' in form.data:
+                try:
+                    recruitment_id = form.data.get('recruitment')
+                    if recruitment_id:
+                        form.cleaned_data = form.cleaned_data or {}
+                        form.cleaned_data['recruitment'] = recruitment
+                        form.errors.pop('recruitment', None)
+                except Exception as e:
+                    pass
+            
+            if 'job_position' in form.data:
+                try:
+                    job_position_id = form.data.get('job_position')
+                    if job_position_id:
+                        form.cleaned_data = form.cleaned_data or {}
+                        form.cleaned_data['job_position'] = job_position
+                        form.errors.pop('job_position', None)
+                except Exception as e:
+                    pass
+            else:
+                # If job_position is not in form data, use the one from recruitment
+                if job_position:
+                    form.cleaned_data = form.cleaned_data or {}
+                    form.cleaned_data['job_position'] = job_position
+                    form.errors.pop('job_position', None)
+            
+            # Re-validate the form
+            if not form.errors:
+                form.cleaned_data['recruitment'] = recruitment
+                form.cleaned_data['job_position'] = job_position
+        
+        # Now process the form if it's valid
+        if form.is_valid() or (form.cleaned_data and 'candidates' in form.cleaned_data):
+            try:
+                created_applications = form.save()
+                if created_applications:
+                    # Assign candidates to the specific stage
+                    for application in created_applications:
+                        application.stage_id = stage
+                        application.save()
+                    
+                    success_message = _("Successfully created {} candidate application(s) in {} stage.").format(
+                        len(created_applications), stage.stage
+                    )
+                    return HttpResponse(
+                        f'<div class="oh-alert-container"><div class="oh-alert oh-alert--animated oh-alert--success">{success_message}</div><script>$(".oh-modal").removeClass("oh-modal--show"); htmx.ajax("GET", "/recruitment/candidate-stage-component/?stage_id={stage.id}", {{target: "#pipelineStageContainer{stage.id}"}});</script></div>'
+                    )
+                else:
+                    warning_message = _("No new applications were created. Applications may already exist for the selected candidates.")
+                    return HttpResponse(
+                        f'<div class="oh-alert-container"><div class="oh-alert oh-alert--animated oh-alert--warning">{warning_message}</div><script>$(".oh-modal").removeClass("oh-modal--show");</script></div>'
+                    )
+            except Exception as e:
+                error_message = _("Error creating candidate applications: {}").format(str(e))
+                import traceback
+                return HttpResponse(
+                    f'<div class="oh-alert-container"><div class="oh-alert oh-alert--animated oh-alert--danger">{error_message}</div><script>$(".oh-modal").removeClass("oh-modal--show");</script></div>'
+                )
+        else:
+            # Form is invalid, return the form with errors
+            context = {
+                "form": form,
+                "stage": stage,
+                "recruitment": recruitment,
+                "job_position": job_position,
+            }
+            return render(
+                request,
+                "candidate_application/candidate_application_create_from_pipeline_modal.html",
+                context,
+            )
+    
+    # GET request - return the form
+    context = {
+        "form": form,
+        "stage": stage,
+        "recruitment": recruitment,
+        "job_position": job_position,
+    }
+    return render(
+        request,
+        "candidate_application/candidate_application_create_from_pipeline_modal.html",
+        context,
+    ) 

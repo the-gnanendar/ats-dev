@@ -130,10 +130,10 @@ def recruitment(request):
         if form.is_valid():
             recruitment_obj = form.save()
             
-            # Create default stages for the recruitment
+            # Create default stages with automatic assignments
             recruitment_obj.create_default_stages()
             
-            messages.success(request, _("Recruitment added."))
+            messages.success(request, _("Recruitment added with default stages."))
             with contextlib.suppress(Exception):
                 managers = recruitment_obj.recruitment_managers.select_related(
                     "employee_user_id"
@@ -256,7 +256,16 @@ def recruitment_update(request, rec_id):
         form = RecruitmentCreationForm(request.POST, instance=recruitment_obj)
         if form.is_valid():
             recruitment_obj = form.save()
-            messages.success(request, _("Recruitment Updated."))
+            
+            # Update stages with new assignments if stages don't exist
+            if not recruitment_obj.stage_set.exists():
+                recruitment_obj.create_default_stages()
+                messages.success(request, _("Recruitment Updated with default stages."))
+            else:
+                # Update existing stages with new assignments
+                recruitment_obj.update_stage_assignments()
+                messages.success(request, _("Recruitment Updated with stage assignments."))
+            
             response = render(
                 request, "recruitment/recruitment_form.html", {"form": form}
             )
@@ -342,8 +351,12 @@ def recruitment_pipeline(request):
             recruitment_form = RecruitmentDropDownForm(request.POST)
             if recruitment_form.is_valid():
                 recruitment_obj = recruitment_form.save()
+                
+                # Create default stages with automatic assignments
+                recruitment_obj.create_default_stages()
+                
                 recruitment_form = RecruitmentDropDownForm()
-                messages.success(request, _("Recruitment added."))
+                messages.success(request, _("Recruitment added with default stages."))
                 with contextlib.suppress(Exception):
                     managers = recruitment_obj.recruitment_managers.select_related(
                         "employee_user_id"
@@ -499,7 +512,16 @@ def recruitment_update_pipeline(request, rec_id):
         form = RecruitmentCreationForm(request.POST, instance=recruitment_obj)
         if form.is_valid():
             recruitment_obj = form.save()
-            messages.success(request, _("Recruitment updated."))
+            
+            # Update stages with new assignments if stages don't exist
+            if not recruitment_obj.stage_set.exists():
+                recruitment_obj.create_default_stages()
+                messages.success(request, _("Recruitment updated with default stages."))
+            else:
+                # Update existing stages with new assignments
+                recruitment_obj.update_stage_assignments()
+                messages.success(request, _("Recruitment updated with stage assignments."))
+            
             with contextlib.suppress(Exception):
                 managers = recruitment_obj.recruitment_managers.select_related(
                     "employee_user_id"

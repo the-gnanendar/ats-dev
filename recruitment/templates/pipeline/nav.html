@@ -93,6 +93,7 @@
         </div>
     </div>
 {% endif %}
+{% if not request.GET.recruitment_id %}
 <section class="oh-wrapper oh-main__topbar" x-data="{searchShow: false}">
     <div class="oh-main__titlebar oh-main__titlebar--left">
         <div
@@ -198,6 +199,27 @@
         </div>
     </form>
 </section>
+{% else %}
+<section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+        <div
+            class="oh-main__titlebar-title fw-bold mb-0 text-dark"
+        >
+            {% for rec in recruitment %}
+                {{ rec.title }}
+            {% endfor %}
+        </div>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+        <div class="oh-main__titlebar-button-container">
+            <a href="{% url 'recruitment-view' %}" class="oh-btn oh-btn--secondary">
+                <ion-icon class="me-1" name="arrow-back-outline"></ion-icon>
+                {% trans 'Back to Recruitments' %}
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}
 <div
     class="oh-modal"
     id="dynamicCreateModal"
@@ -217,6 +239,26 @@
     data-toggle="oh-modal-toggle"
     data-target="#dynamicCreateModal"
     hx-get="{% url 'create-skills' %}?dynamic=True"
+    hx-target="#dynamicCreateModalBody"
+>
+</span>
+
+<span
+    name=""
+    id="dynamicTechnicalSkills"
+    data-toggle="oh-modal-toggle"
+    data-target="#dynamicCreateModal"
+    hx-get="{% url 'create-technical-skills' %}?dynamic=True"
+    hx-target="#dynamicCreateModalBody"
+>
+</span>
+
+<span
+    name=""
+    id="dynamicNonTechnicalSkills"
+    data-toggle="oh-modal-toggle"
+    data-target="#dynamicCreateModal"
+    hx-get="{% url 'create-non-technical-skills' %}?dynamic=True"
     hx-target="#dynamicCreateModalBody"
 >
 </span>
@@ -266,6 +308,7 @@
       });
     })
 </script>
+{% if not request.GET.recruitment_id %}
 {% include "filter_tags.html" %}
 <div class="d-flex flex-row-reverse oh-wrapper" id="quickFilters">
     <span
@@ -289,6 +332,7 @@
         {% trans "Open" %}
     </span>
 </div>
+{% endif %}
 <script src="{% static 'build/js/pipelineDriver.js' %}"></script>
 <script>
     initialAvtiveTab = $(".oh-tabs__content--active").length;

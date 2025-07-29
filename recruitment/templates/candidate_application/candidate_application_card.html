@@ -9,19 +9,16 @@
             <div class="oh-card">
                 <div class="oh-card__header">
                     <div class="oh-card__avatar">
-                        {% if app.profile %}
-                            <img src="{{ app.profile.url }}" 
-                                 alt="{{ app.name }}" 
-                                 class="oh-card__avatar-img">
-                        {% else %}
-                            <div class="oh-card__avatar-placeholder">
-                                {{ app.name|first|upper }}
-                            </div>
-                        {% endif %}
+                        <img src="{{ app.get_avatar }}" 
+                             alt="{{ app.name }}" 
+                             class="oh-card__avatar-img">
                     </div>
                     <div class="oh-card__title">
                         <h4 class="oh-card__name">{{ app.name }}</h4>
                         <p class="oh-card__email">{{ app.email }}</p>
+                        {% if app.mobile %}
+                            <p class="oh-card__mobile">{{ app.mobile }}</p>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="oh-card__body">
@@ -58,38 +55,218 @@
                                 <span class="oh-badge oh-badge--secondary">{% trans "Active" %}</span>
                             {% endif %}
                         </div>
+                        {% if app.created_at %}
+                            <div class="oh-card__info-item">
+                                <span class="oh-card__label">{% trans "Applied" %}:</span>
+                                <span class="oh-card__value">{{ app.created_at|date:"M d, Y" }}</span>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="oh-card__footer">
-                    <div class="oh-btn-group">
-                        <a href="{% url 'candidate-application-view-individual' app.id %}" 
-                           class="oh-btn oh-btn--sm oh-btn--light" 
-                           title="{% trans 'View Details' %}">
-                            <ion-icon name="eye-outline"></ion-icon>
-                        </a>
-                        <a href="{% url 'candidate-application-update' app.id %}" 
-                           class="oh-btn oh-btn--sm oh-btn--info" 
-                           title="{% trans 'Edit' %}">
-                            <ion-icon name="create-outline"></ion-icon>
-                        </a>
-                        {% if not app.converted_employee_id and not app.email in existing_emails %}
-                            <a href="{% url 'candidate-application-conversion' app.id %}" 
-                               class="oh-btn oh-btn--sm oh-btn--success"
-                               onclick="return confirm('{% trans 'Convert this application to employee?' %}')"
-                               title="{% trans 'Convert to Employee' %}">
-                                <ion-icon name="person-add-outline"></ion-icon>
+                    <div class="row">
+                        <div class="col-4">
+                            <a href="{% url 'candidate-view-individual' app.id %}" 
+                               class="oh-btn oh-btn--sm oh-btn--light w-100" 
+                               title="{% trans 'View Details' %}">
+                                <ion-icon name="eye-outline"></ion-icon>
+                                {% trans "View" %}
                             </a>
-                        {% endif %}
-                        <a href="{% url 'candidate-application-archive' app.id %}" 
-                           class="oh-btn oh-btn--sm oh-btn--warning"
-                           onclick="return confirm('{% trans 'Archive this application?' %}')"
-                           title="{% trans 'Archive' %}">
-                            <ion-icon name="archive-outline"></ion-icon>
-                        </a>
+                        </div>
+                        <div class="col-4">
+                            <a href="{% url 'candidate-application-update' app.id %}" 
+                               class="oh-btn oh-btn--sm oh-btn--info w-100" 
+                               title="{% trans 'Edit' %}">
+                                <ion-icon name="create-outline"></ion-icon>
+                                {% trans "Edit" %}
+                            </a>
+                        </div>
+                        <div class="col-4">
+                            {% if perms.recruitment.delete_candidateapplication %}
+                            <button type="button" 
+                                    class="oh-btn oh-btn--sm oh-btn--danger w-100" 
+                                    title="{% trans 'Delete' %}"
+                                    onclick="showDeleteModal({{ app.id }})">
+                                <ion-icon name="trash-outline"></ion-icon>
+                                {% trans "Delete" %}
+                            </button>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="oh-empty-state">
+                <div class="oh-empty-state__icon">
+                    <ion-icon name="people-outline"></ion-icon>
+                </div>
+                <h3 class="oh-empty-state__title">{% trans "No Candidate Applications Found" %}</h3>
+                <p class="oh-empty-state__description">
+                    {% trans "No candidate applications match your current filters. Try adjusting your search criteria or create a new application." %}
+                </p>
+                {% if perms.recruitment.add_candidateapplication %}
+                    <a href="{% url 'candidate-application-create' %}" class="oh-btn oh-btn--secondary">
+                        <ion-icon name="add-outline"></ion-icon>
+                        {% trans "Create Application" %}
+                    </a>
+                {% endif %}
+            </div>
+        </div>
         {% endfor %}
     </div>
-</div> 
+</div>
+
+<style>
+.oh-card {
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.oh-card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.oh-card__header {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.oh-card__avatar {
+    flex-shrink: 0;
+}
+
+.oh-card__avatar-img {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.oh-card__title {
+    flex: 1;
+    min-width: 0;
+}
+
+.oh-card__name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #212529;
+    margin: 0 0 0.25rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.oh-card__email {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin: 0 0 0.125rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.oh-card__mobile {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.oh-card__body {
+    padding: 1rem;
+    flex: 1;
+}
+
+.oh-card__info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.oh-card__info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.oh-card__label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.oh-card__value {
+    font-size: 0.75rem;
+    color: #212529;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
+}
+
+.oh-card__footer {
+    padding: 1rem;
+    border-top: 1px solid #e9ecef;
+    background-color: #f8f9fa;
+}
+
+.oh-card__footer .row {
+    margin: 0;
+}
+
+.oh-card__footer .col-6 {
+    padding: 0 0.25rem;
+}
+
+.oh-card__footer .oh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    padding: 0.375rem 0.5rem;
+}
+
+.oh-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.oh-empty-state__icon {
+    font-size: 3rem;
+    color: #6c757d;
+    margin-bottom: 1rem;
+}
+
+.oh-empty-state__title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 0.5rem;
+}
+
+.oh-empty-state__description {
+    color: #6c757d;
+    margin-bottom: 1.5rem;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+</style> 

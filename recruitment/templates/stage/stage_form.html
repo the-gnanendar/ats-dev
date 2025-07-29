@@ -47,6 +47,28 @@
     <script>
         $(document).ready(function () {
             $("#stageFormCreate [name=stage_managers]").removeAttr("required");
+            
+            // Auto-populate interviewers based on stage type
+            {% if recruitment_data %}
+            var recruitmentData = JSON.parse('{{ recruitment_data|escapejs }}');
+            
+            $("#stageFormCreate [name=stage_type]").on("change", function() {
+                var stageType = $(this).val();
+                var interviewerField = $("#stageFormCreate [name=stage_interviewers]");
+                
+                // Clear current selection
+                interviewerField.val(null).trigger("change");
+                
+                // Auto-populate based on stage type
+                if (stageType === "l1_interview" && recruitmentData.l1_interviewer.length > 0) {
+                    interviewerField.val(recruitmentData.l1_interviewer).trigger("change");
+                } else if (stageType === "l2_interview" && recruitmentData.l2_interviewer.length > 0) {
+                    interviewerField.val(recruitmentData.l2_interviewer).trigger("change");
+                } else if (stageType === "l3_interview" && recruitmentData.l3_interviewer.length > 0) {
+                    interviewerField.val(recruitmentData.l3_interviewer).trigger("change");
+                }
+            });
+            {% endif %}
         });
     </script>
 </div>

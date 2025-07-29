@@ -3,25 +3,413 @@
 {% load i18n %}
 {% load horillafilters %}
 
+{% csrf_token %}
+
 {% block content %}
-<div class="oh-wrapper">
-    <div class="oh-main__titlebar oh-main__titlebar--left">
-        <h1 class="oh-main__titlebar-title fw-bold mb-0 text-dark">
-            {% trans "Candidate Applications" %}
-        </h1>
-    </div>
-    <div class="oh-main__titlebar oh-main__titlebar--right">
-        <div class="oh-btn-group ml-2">
-            {% if perms.recruitment.add_candidateapplication %}
-                <a href="{% url 'candidate-application-create' %}" class='oh-btn oh-btn--secondary'>
-                    <ion-icon name="add-sharp" class="mr-1"></ion-icon>{% trans "Create" %}
-                </a>
-            {% endif %}
-        </div>
-    </div>
-    
-    <div id="section" hx-target="#section" hx-swap="innerHTML">
-        {% include 'candidate_application/candidate_application_component.html' %}
-    </div>
+<div id="messages" class="oh-alert-container"></div>
+<div class="oh-modal" id="createModal" role="dialog" aria-hidden="true">
+  <div class="oh-modal__dialog" style="max-width: 550px">
+      <div class="oh-modal__dialog-header">
+      <button type="button" class="oh-modal__close" aria-label="Close"><ion-icon name="close-outline"></ion-icon></button>
+      </div>
+
+      <div class="oh-modal__dialog-body" id="createTarget"></div>
+  </div>
 </div>
+
+<style>
+  .to-employee{
+    background: #f1ffd5;
+  }
+  .to-employee:hover{
+    background-color: #f1ffd5 !important;
+  }
+  .oh-rate:not(:checked)>label:hover, .oh-rate:not(:checked)>label:hover~label{
+    color: #ccc
+  }
+  #enlargeImageContainer {
+    position: absolute;
+    left: -300px;
+    top: 100px;
+    height: 200px;
+    width: 200px;
+  }
+</style>
+
+<!-- Navigation Section -->
+<section class="oh-wrapper oh-main__topbar" x-data="{searchShow: false}">
+  <div class="oh-main__titlebar oh-main__titlebar--left">
+    <h1 class="oh-main__titlebar-title fw-bold">
+      {% trans "Candidate Applications" %}
+    </h1>
+    <a
+      class="oh-main__titlebar-search-toggle "
+      role="button"
+      aria-label="Toggle Search"
+      @click="searchShow = !searchShow"
+      >
+      <ion-icon
+        name="search-outline"
+        class="oh-main__titlebar-serach-icon"
+      ></ion-icon>
+    </a>
+  </div>
+  <form
+      hx-get='{% url "candidate-application-search" %}'
+      id="filterForm"
+      hx-target="#section"
+      class="d-flex"
+      onsubmit="event.preventDefault();"
+    >
+
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+
+      <div
+        class="oh-input-group oh-input__search-group"
+        :class="searchShow ? 'oh-input__search-group--show' : ''"
+      >
+        <ion-icon
+          name="search-outline"
+          class="oh-input-group__icon oh-input-group__icon--left"
+        ></ion-icon>
+        <input
+          type="text"
+          placeholder="{% trans 'Search' %}"
+          id="candidate-application-search"
+          name='search'
+          value="{{request.GET.search}}"
+          class="oh-input oh-input__icon"
+          aria-label="Search Input"
+          onkeyup="$(this).closest('form').find('.filterButton').click()"
+        />
+      </div>
+      <ul class="oh-view-types ml-2" style="margin-bottom: 0;" id="view-type">
+        <li class="oh-view-type candidate-application-view-type" data-view='list'>
+          <a
+            id="list"
+            class="oh-btn oh-btn--view {% if request.GET.view == 'list' %} oh-btn--view-active {% endif %}"
+            title='{% trans "List" %}'
+            onclick="$('[name=view]').val('list');$(this).closest('form').find('.filterButton').click();"
+            ><ion-icon name="list-outline"></ion-icon
+          ></a>
+        </li>
+        <li class="oh-view-type candidate-application-view-type" data-view='card'>
+          <a
+            id="card"
+            class="oh-btn oh-btn--view {% if request.GET.view != 'list' %} oh-btn--view-active {% endif %}"
+            title='{% trans "Card" %}'
+            onclick="$('[name=view]').val('card');$(this).closest('form').find('.filterButton').click();"
+            ><ion-icon name="grid-outline"></ion-icon
+          ></a>
+        </li>
+      </ul>
+      <input type="hidden" name="view" id="filterView" value="">
+      <div class="oh-main__titlebar-button-container">
+        <div class="oh-dropdown" x-data="{open: false}">
+          <button class="oh-btn ml-2" @click="open = !open" onclick="event.preventDefault()">
+            <ion-icon name="filter" class="mr-1"></ion-icon>{% trans "Filter" %}<div id="filterCount"></div>
+          </button>
+          <div
+            class="oh-dropdown__menu oh-dropdown__menu--right oh-dropdown__filter p-4"
+            x-show="open"
+            @click.outside="open = false"
+            style="display: none;"
+          >
+          {% include 'candidate_application/filters.html' %}
+          </div>
+        </div>
+
+        <div class="oh-dropdown" x-data="{open: false}">
+          <button class="oh-btn ml-2" @click="open = !open" onclick="event.preventDefault()">
+            <ion-icon name="library-outline" class="mr-1"></ion-icon>{% trans "Group By" %}
+            <div id="filterCount"></div>
+          </button>
+          <div
+          class="oh-dropdown__menu oh-dropdown__menu--right oh-dropdown__filter p-4"
+          x-show="open"
+          @click.outside="open = false"
+          style="display: none"
+          >
+          <div class="oh-accordion">
+            <label class="oh-label" for="id_field">{% trans "Group By" %}</label>
+              <div class="row">
+                <div class="col-sm-12 col-md-12 col-lg-6">
+                  <div class="oh-input-group">
+                    <label class="oh-label" for="id_field">{% trans "Field" %}</label>
+                  </div>
+                </div>
+                <div class="col-sm-12 col-md-12 col-lg-6">
+                  <div class="oh-input-group">
+                    <select
+                      class="oh-select mt-1 w-100"
+                      id="id_field"
+                      name="field"
+                      class="select2-selection select2-selection--single"
+                    >
+                      {% for field in gp_fields %}
+                      <option value="{{ field.0 }}">{% trans field.1 %}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </form>
+        <div class="oh-btn-group ml-2">
+          <div class="oh-dropdown" x-data="{open: false}">
+            <button
+              type="button"
+              class="oh-btn oh-btn--dropdown oh-btn oh-btn--shadow"
+              @click="open = !open"
+              @click.outside="open = false"
+            >
+              {% trans "Actions" %}
+            </button>
+            <div class="oh-dropdown__menu oh-dropdown__menu--right" x-show="open"
+            style="display: none;"
+          >
+              <ul class="oh-dropdown__items">
+                <li class="oh-dropdown__item">
+                  {% if perms.recruitment.delete_candidateapplication %}
+                  <a
+                    href="#"
+                    class="oh-dropdown__link"
+                    id="candidate-application-info-export"
+                    data-toggle="oh-modal-toggle"
+                    data-target="#candidateApplicationExport"
+                    hx-get="{% url 'candidate-application-export' %}"
+                    hx-target="#candidateApplicationExportModalBody"
+                    >{% trans "Export" %}</a
+                  >
+                  {% endif %}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="oh-btn-group ml-2">
+          <div class="oh-dropdown" >
+            {% if perms.recruitment.add_candidateapplication %}
+            <a href="{% url 'candidate-application-create' %}"
+            class='oh-btn oh-btn--secondary'
+            >
+            <ion-icon name="add-sharp" class="mr-1"></ion-icon>{% trans "Create" %}
+          </a>
+          {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</section>
+
+<div class="oh-modal" id="candidateApplicationExport" role="dialog" aria-labelledby="candidateApplicationExport" aria-hidden="true">
+  <div class="oh-modal__dialog" id="candidateApplicationExportModalBody"></div>
+</div>
+
+<div class="oh-wrapper">
+  <div class="oh-checkpoint-badge mb-2" id="selectedInstances" data-ids="[]" data-clicked="" style="display:none;" >
+  </div>
+
+  <div class="d-flex flex-row-reverse" id="quickFilters">
+    <span class="m-1" onclick="$('[name=hired]').val('true'); $('[name=hired]').first().change(); $('.filterButton').click()" style="cursor: pointer;margin-left: 5px;">
+      <span class="oh-dot oh-dot--small me-1" style="background-color:yellowgreen"></span>
+      {% trans "Hired" %}
+    </span>
+    <span class="m-1" onclick="$('[name=canceled]').val('true'); $('[name=canceled]').first().change(); $('.filterButton').click()" style="cursor: pointer;margin-left: 5px;">
+      <span class="oh-dot oh-dot--small me-1" style="background-color:red"></span>
+      {% trans "Canceled" %}
+    </span>
+    <span class="m-1" onclick="$('[name=converted]').val('true'); $('[name=converted]').first().change(); $('.filterButton').click()" style="cursor: pointer;margin-left: 5px;">
+      <span class="oh-dot oh-dot--small me-1" style="background-color:orange"></span>
+      {% trans "Converted" %}
+    </span>
+    <span class="m-1" onclick="$('[name=hired]').val('false'); $('[name=canceled]').val('false'); $('[name=converted]').val('false'); $('.filterButton').click()" style="cursor: pointer;margin-left: 5px;">
+      <span class="oh-dot oh-dot--small me-1" style="background-color:gray"></span>
+      {% trans "Active" %}
+    </span>
+  </div>
+
+  <div id="section" hx-target="#section" hx-swap="innerHTML">
+    {% if request.GET.view == 'list' %}
+      {% include 'candidate_application/candidate_application_list.html' %}
+    {% else %}
+      {% include 'candidate_application/candidate_application_card.html' %}
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  function submitForm(elem) {
+    $(elem).siblings(".add_more_submit").click();
+  }
+
+	function enlargeImage(src) {
+		var enlargeImageContainer = $('#enlargeImageContainer');
+		enlargeImageContainer.empty();
+    style = "width:100%; height:90%; box-shadow: 0 10px 10px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.2); background:white"
+		var enlargedImage = $('<iframe>').attr({'src': src,'style': style,});
+    var name =$('<span>').text(src.split('/').pop().replace(/_/g, " "))
+		enlargeImageContainer.append(enlargedImage);
+		enlargeImageContainer.append(name);
+		setTimeout(function() {
+		  enlargeImageContainer.show();
+
+      const iframe = document.querySelector("iframe").contentWindow;
+      var iframe_document = iframe.document
+      iframe_image = iframe_document.getElementsByTagName('img')[0]
+      $(iframe_image).attr("style","width:100%; height:100%;")
+
+		}, 100);
+	}
+
+  function hideEnlargeImage() {
+		var enlargeImageContainer = $('#enlargeImageContainer');
+		enlargeImageContainer.empty();
+  }
+
+  $(document).on('click', function(event){
+    if (!$(event.target).closest('#enlargeImageContainer').length) {
+        hideEnlargeImage();
+    }
+  });
+</script>
+
+<script>
+  $(document).ready(function () {
+    function candidateApplicationFilter(element) {
+      var search = $("#candidate-application-search").val();
+      const form = document.querySelector("#filterForm");
+      const formData = new FormData(form);
+      const queryString = new URLSearchParams(formData).toString();
+      const searchParams = new URLSearchParams(queryString);
+      const queryObject = Object.fromEntries(searchParams.entries());
+      view = $(element).attr("data-view");
+      queryObject["search"] = search;
+      queryObject["view"] = view;
+      stringQueyObject = JSON.stringify(queryObject);
+    }
+
+    $("#candidate-application-search").keyup(function (e) {
+      $(".candidate-application-view-type").attr(
+        "hx-vals",
+        `{"search":"${$(this).val()}"}`
+      );
+    });
+    $(".candidate-application-view-type").on("click", function (e) {
+      let view = $(this).attr("data-view");
+      var currentURL = window.location.href;
+      if (view != undefined) {
+        if (/\?view=[^&]+/.test(currentURL)) {
+          newURL = currentURL.replace(/\?view=[^&]+/, "?view=" + view);
+        } else {
+          var separator = currentURL.includes("?") ? "&" : "?";
+          newURL = currentURL + separator + "view=" + view;
+        }
+        history.pushState({}, "", newURL);
+        $("#candidate-application-search").attr("hx-vals", `{"view":"${view}"}`);
+        $("#filterForm").attr("hx-vals", `{"view":"${view}"}`);
+        $(".oh-btn--view-active").removeClass("oh-btn--view-active");
+        $(this).children("a").addClass("oh-btn--view-active");
+      }
+    });
+    $('#id_field').on('change',function(){
+      $('.filterButton')[0].click();
+    })
+  });
+</script>
+
+<script src="{% static '/candidate/bulk.js' %}"></script>
+
+<script>
+// Delete modal functionality
+function showDeleteModal(appId) {
+  // Show the modal
+  const modal = document.getElementById('createModal');
+  modal.style.display = 'block';
+  
+  // Load the delete confirmation content
+  htmx.ajax('GET', `/recruitment/candidate-application-delete/${appId}/`, {
+    target: '#createTarget',
+    swap: 'innerHTML'
+  });
+}
+
+function closeDeleteModal() {
+  const modal = document.getElementById('createModal');
+  modal.style.display = 'none';
+  document.getElementById('createTarget').innerHTML = '';
+}
+
+function confirmDelete(appId) {
+  // Show loading state
+  const deleteBtn = event.target;
+  const originalText = deleteBtn.innerHTML;
+  deleteBtn.innerHTML = '<ion-icon name="hourglass-outline"></ion-icon> {% trans "Deleting..." %}';
+  deleteBtn.disabled = true;
+  
+  // Send delete request
+  fetch(`/recruitment/candidate-application-delete/${appId}/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      'Content-Type': 'application/json',
+      'HX-Request': 'true'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.status === 'success') {
+      // Show success message
+      showMessage(data.message, 'success');
+      // Close modal
+      closeDeleteModal();
+      // Redirect to candidate application view page
+      setTimeout(() => {
+        window.location.href = '/recruitment/candidate-application-view/';
+      }, 1000);
+    } else {
+      showMessage(data.message, 'error');
+      deleteBtn.innerHTML = originalText;
+      deleteBtn.disabled = false;
+    }
+  })
+  .catch(error => {
+    showMessage('{% trans "An error occurred while deleting the application." %}', 'error');
+    deleteBtn.innerHTML = originalText;
+    deleteBtn.disabled = false;
+  });
+}
+
+function showMessage(message, type) {
+  const messagesContainer = document.getElementById('messages');
+  const alertClass = type === 'success' ? 'oh-alert--success' : 'oh-alert--danger';
+  
+  const alertHtml = `
+    <div class="oh-alert oh-alert--animated ${alertClass}">
+      ${message}
+    </div>
+  `;
+  
+  messagesContainer.innerHTML = alertHtml;
+  
+  // Auto-hide after 3 seconds
+  setTimeout(() => {
+    messagesContainer.innerHTML = '';
+  }, 3000);
+}
+
+// Close modal when clicking outside
+document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('createModal');
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      closeDeleteModal();
+    }
+  });
+});
+</script>
+
 {% endblock %} 

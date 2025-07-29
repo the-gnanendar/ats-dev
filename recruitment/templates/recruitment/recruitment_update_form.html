@@ -14,20 +14,20 @@
           var selectedSkill = selectElement.val();
           var parentForm = selectElement.parents().closest("form");
           if (selectedSkill && selectedSkill.includes("create")) {
-              let dynamicTechnicalSkills = $("#dynamicTechnicalSkills");
+              let dynamicTechSkills = $("#dynamicTechnicalSkills");
               var view = parentForm.serialize();
-              dynamicTechnicalSkills.attr("hx-vals", `{"data":"${view}"}`);
-              dynamicTechnicalSkills.click();
+              dynamicTechSkills.attr("hx-vals", `{"data":"${view}"}`);
+              dynamicTechSkills.click();
           }
       }
-      function nonTechnicalSkillChange(selectElement) {
+      function nontechnicalSkillChange(selectElement) {
           var selectedSkill = selectElement.val();
           var parentForm = selectElement.parents().closest("form");
           if (selectedSkill && selectedSkill.includes("create")) {
-              let dynamicNonTechnicalSkills = $("#dynamicNonTechnicalSkills");
+              let dynamicNonTechSkills = $("#dynamicNontechnicalSkills");
               var view = parentForm.serialize();
-              dynamicNonTechnicalSkills.attr("hx-vals", `{"data":"${view}"}`);
-              dynamicNonTechnicalSkills.click();
+              dynamicNonTechSkills.attr("hx-vals", `{"data":"${view}"}`);
+              dynamicNonTechSkills.click();
           }
       }
       $(document).ready(function(){
@@ -38,12 +38,14 @@
               technicalSkillChange($(this))
           })
           $("[name= 'non_technical_skills']").on("change", function(){
-              nonTechnicalSkillChange($(this))
+              nontechnicalSkillChange($(this))
           })
       });
       {% if dynamic %}
       setTimeout(function () {
         $('#dynamicCreateModal').removeClass('oh-modal--show');
+        $('#dynamicTechnicalSkillsModal').removeClass('oh-modal--show');
+        $('#dynamicNontechnicalSkillsModal').removeClass('oh-modal--show');
       }, 500);
     {% endif %}
 </script>
@@ -351,3 +353,29 @@
           }
     });
 </script>
+
+<!-- Dynamic Technical Skills Modal Trigger and Container -->
+<span
+    id="dynamicTechnicalSkills"
+    data-toggle="oh-modal-toggle"
+    data-target="#dynamicTechnicalSkillsModal"
+    hx-get="{% url 'create-technical-skills' %}?dynamic=True"
+    hx-target="#dynamicTechnicalSkillsModalBody"
+    style="display:none;"
+></span>
+<div class="oh-modal" id="dynamicTechnicalSkillsModal" role="dialog" aria-hidden="true" style="z-index: 1022">
+    <div class="oh-modal__dialog" style="max-width: 550px" id="dynamicTechnicalSkillsModalBody"></div>
+</div>
+
+<!-- Dynamic Nontechnical Skills Modal Trigger and Container -->
+<span
+    id="dynamicNontechnicalSkills"
+    data-toggle="oh-modal-toggle"
+    data-target="#dynamicNontechnicalSkillsModal"
+    hx-get="{% url 'create-non-technical-skills' %}?dynamic=True"
+    hx-target="#dynamicNontechnicalSkillsModalBody"
+    style="display:none;"
+></span>
+<div class="oh-modal" id="dynamicNontechnicalSkillsModal" role="dialog" aria-hidden="true" style="z-index: 1022">
+    <div class="oh-modal__dialog" style="max-width: 550px" id="dynamicNontechnicalSkillsModalBody"></div>
+</div>

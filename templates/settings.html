@@ -254,6 +254,26 @@
 												{% endif %}
 											</div>
 											<div class="oh-input-group">
+												{% if perms.recruitment.add_recruitment %}
+													<a
+														id="technicalSkills"
+														href="{% url 'technical-skills-view' %}"
+														class="oh-inner-sidebar__link oh-dropdown__link"
+														>{% trans "Technical Skills" %}</a
+													>
+												{% endif %}
+											</div>
+											<div class="oh-input-group">
+												{% if perms.recruitment.add_recruitment %}
+													<a
+														id="nonTechnicalSkills"
+														href="{% url 'non-technical-skills-view' %}"
+														class="oh-inner-sidebar__link oh-dropdown__link"
+														>{% trans "Non-Technical Skills" %}</a
+													>
+												{% endif %}
+											</div>
+											<div class="oh-input-group">
 												{% comment %} {% if perms.recruitment.add_recruitment %} {% endcomment %}
 													<a
 														id="skills"

@@ -1,0 +1,27 @@
+{% load i18n %}
+
+<form hx-post="{% url 'candidate-application-create-from-pipeline' %}?stage_id={{stage.id}}" hx-encoding="multipart/form-data" hx-target="#createTarget">
+    {% csrf_token %}
+    
+    <!-- Candidate Selection -->
+    <div class="row">
+        <div class="col-12">
+            <label class="oh-label required-star" for="{{form.candidates.id_for_label}}" 
+                   title="{{ form.candidates.help_text|safe }}">
+                {{ form.candidates.label }}
+            </label>
+            {{ form.candidates }}
+            {{ form.candidates.errors }}
+        </div>
+    </div>
+    
+    <!-- Hidden fields for recruitment and job position -->
+    <input type="hidden" name="recruitment" value="{{ recruitment.id }}">
+    <input type="hidden" name="job_position" value="{% if job_position %}{{ job_position.id }}{% endif %}">
+    
+    <div class="d-flex justify-content-end mt-3">
+        <button type="submit" class="oh-btn oh-btn--secondary">
+            {% trans "Save" %}
+        </button>
+    </div>
+</form> 

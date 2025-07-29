@@ -193,12 +193,12 @@ class Recruitment(HorillaModel):
         editable=False,
     )
     vacancy = models.IntegerField(default=0, null=True, verbose_name=_("Vacancy"))
-    recruitment_managers = models.ManyToManyField(Employee, verbose_name=_("Managers"))
+    recruitment_managers = models.ManyToManyField(Employee, verbose_name=_("Delivery/Account Managers"))
     
     # Default Stage Manager for all stages
     default_stage_manager = models.ManyToManyField(
         Employee, 
-        verbose_name=_("Default Stage Manager"),
+        verbose_name=_("Recruiters"),
         help_text=_("This manager will be assigned to all stages by default"),
         related_name="default_stage_manager_recruitments",
         blank=True
@@ -509,6 +509,25 @@ class Recruitment(HorillaModel):
             elif stage_data["stage_type"] == "l2_interview" and self.l2_interviewer.exists():
                 stage.stage_interviewers.set(self.l2_interviewer.all())
             elif stage_data["stage_type"] == "l3_interview" and self.l3_interviewer.exists():
+                stage.stage_interviewers.set(self.l3_interviewer.all())
+            
+            stage.save()
+
+    def update_stage_assignments(self):
+        """
+        This method updates existing stages with new assignments from the recruitment
+        """
+        for stage in self.stage_set.all():
+            # Update stage managers with default stage manager
+            if self.default_stage_manager.exists():
+                stage.stage_managers.set(self.default_stage_manager.all())
+            
+            # Update interviewers for specific stages
+            if stage.stage_type == "l1_interview" and self.l1_interviewer.exists():
+                stage.stage_interviewers.set(self.l1_interviewer.all())
+            elif stage.stage_type == "l2_interview" and self.l2_interviewer.exists():
+                stage.stage_interviewers.set(self.l2_interviewer.all())
+            elif stage.stage_type == "l3_interview" and self.l3_interviewer.exists():
                 stage.stage_interviewers.set(self.l3_interviewer.all())
             
             stage.save()

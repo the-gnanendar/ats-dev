@@ -1,6 +1,8 @@
 {% load i18n recruitmentfilters %}
+{% if not request.GET.recruitment_id %}
 {% include 'pipeline/pipeline_tabs.html' %}
 {% include "filter_tags.html" %}
+{% endif %}
 
 <div class="oh-tabs__contents">
   {% for rec in recruitment %}
@@ -14,7 +16,7 @@
     </button>
     {% if request.user|stage_manages:rec or perms.recruitment.view_recruitment %}
       <!-- Tab Content -->
-      <div class="oh-tabs__content oh-tabs__content" id="tab_rec_{{ rec.id }}">
+      <div class="oh-tabs__content oh-tabs__content{% if request.GET.recruitment_id %} oh-tabs__content--active{% endif %}" id="tab_rec_{{ rec.id }}">
         {% if request.user|recruitment_manages:rec or perms.recruitment.add_stage %}
           <div class="d-flex" style="flex-direction: row-reverse;">
             <button class="oh-btn oh-btn--secondary" data-target="#objectCreateModal" data-toggle="oh-modal-toggle" hx-get="{% url 'rec-stage-create' %}?recruitment_id={{ rec.id }}" hx-target="#objectCreateModalTarget">
@@ -32,6 +34,7 @@
     {% endif %}
   {% endfor %}
 
+{% if not request.GET.recruitment_id %}
 <div class="oh-wrapper mb-5">
   <!-- Paginator Section -->
   <div class="oh-pagination">
@@ -87,6 +90,7 @@
   </div>
 
 </div>
+{% endif %}
 </div>
 <script>
 $(document).ready(function () {

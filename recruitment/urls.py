@@ -74,6 +74,7 @@ urlpatterns = [
         name="pipeline-stages-component",
     ),
     path("get-stage-count", views.get_stage_badge_count, name="get-stage-count"),
+    path("create-stage-ajax/", views.create_stage_ajax, name="create-stage-ajax"),
     path(
         "update-candidate-stage-and-sequence",
         views.update_candidate_stage_and_sequence,
@@ -90,7 +91,7 @@ urlpatterns = [
     #     name="update-candidate-stage",
     # ),
     path(
-        "candidate-stage-component",
+        "candidate-stage-component/",
         views.candidate_component,
         name="candidate-stage-component",
     ),
@@ -577,6 +578,16 @@ urlpatterns = [
         name="skills-view",
     ),
     path(
+        "technical-skills-view/",
+        views.technical_skills_view,
+        name="technical-skills-view",
+    ),
+    path(
+        "non-technical-skills-view/",
+        views.non_technical_skills_view,
+        name="non-technical-skills-view",
+    ),
+    path(
         "create-skills/",
         views.create_skills,
         name="create-skills",
@@ -756,9 +767,14 @@ urlpatterns = [
     # CandidateApplication URLs
     # Main CRUD operations
     path(
-        "candidate-application-create/",
-        candidate_application_views.candidate_application_create,
-        name="candidate-application-create",
+            "candidate-application-create/",
+    candidate_application_views.candidate_application_create,
+    name="candidate-application-create",
+),
+path(
+    "candidate-application-create-from-pipeline/",
+    candidate_application_views.candidate_application_create_from_pipeline,
+    name="candidate-application-create-from-pipeline",
     ),
     path(
         "candidate-application-view/",
@@ -852,6 +868,6 @@ urlpatterns = [
     path(
         "get-job-positions/",
         candidate_application_views.get_job_positions,
-        name="get-job-positions",
+        name="recruitment-get-job-positions",
     ),
 ]

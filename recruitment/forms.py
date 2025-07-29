@@ -278,8 +278,14 @@ class RecruitmentCreationForm(BaseModelForm):
 
         reload_queryset(self.fields)
         if not self.instance.pk:
+            # Filter employees by job position for managers (Delivery/Account Managers)
+            manager_queryset = Employee.objects.filter(
+                is_active=True,
+                employee_work_info__job_position_id__job_position__in=['Delivery Manager', 'Account Manager', 'delivery', 'account']
+            )
+            
             self.fields["recruitment_managers"] = HorillaMultiSelectField(
-                queryset=Employee.objects.filter(is_active=True),
+                queryset=manager_queryset,
                 widget=HorillaMultiSelectWidget(
                     filter_route_name="employee-widget-filter",
                     filter_class=EmployeeFilter,
@@ -287,12 +293,18 @@ class RecruitmentCreationForm(BaseModelForm):
                     filter_template_path="employee_filters.html",
                     required=True,
                 ),
-                label=f"{self._meta.model()._meta.get_field('recruitment_managers').verbose_name}",
+                label=_("Delivery/Account Managers"),
             )
             
-            # Default Stage Manager field
+            # Filter employees by job position for recruiters
+            recruiter_queryset = Employee.objects.filter(
+                is_active=True,
+                employee_work_info__job_position_id__job_position__icontains='recruiter'
+            )
+            
+            # Default Stage Manager field - renamed to Recruiters
             self.fields["default_stage_manager"] = HorillaMultiSelectField(
-                queryset=Employee.objects.filter(is_active=True),
+                queryset=recruiter_queryset,
                 widget=HorillaMultiSelectWidget(
                     filter_route_name="employee-widget-filter",
                     filter_class=EmployeeFilter,
@@ -300,7 +312,7 @@ class RecruitmentCreationForm(BaseModelForm):
                     filter_template_path="employee_filters.html",
                     required=False,
                 ),
-                label=f"{self._meta.model()._meta.get_field('default_stage_manager').verbose_name}",
+                label=_("Recruiters"),
             )
             
             # L1 Interviewer field
@@ -654,6 +666,18 @@ class RecruitmentDropDownForm(DropDownForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
+        # Filter employees by job position for managers (Delivery/Account Managers)
+        manager_queryset = Employee.objects.filter(
+            is_active=True,
+            employee_work_info__job_position_id__job_position__in=['Delivery Manager', 'Account Manager', 'delivery', 'account']
+        )
+        
+        # Update the recruitment_managers field with filtered queryset and new label
+        if 'recruitment_managers' in self.fields:
+            self.fields["recruitment_managers"].queryset = manager_queryset
+            self.fields["recruitment_managers"].label = _("Delivery/Account Managers")
+        
         self.fields["recruitment_managers"].widget.attrs.update({"id": uuid.uuid4})
 
 
@@ -1038,6 +1062,38 @@ class CandidateExportForm(forms.Form):
             "country",
             "state",
             "city",
+        ],
+    )
+
+
+class CandidateApplicationExportForm(forms.Form):
+    model_fields = CandidateApplication._meta.get_fields()
+    exclude_fields = [
+        "id",
+        "is_active",
+        "sequence",
+        "last_updated",
+        "converted_employee_id",
+    ]
+    field_choices = [
+        (field.name, field.verbose_name.capitalize())
+        for field in model_fields
+        if hasattr(field, "verbose_name") and field.name not in exclude_fields
+    ]
+    selected_fields = forms.MultipleChoiceField(
+        choices=field_choices,
+        widget=forms.CheckboxSelectMultiple,
+        initial=[
+            "name",
+            "email",
+            "mobile",
+            "recruitment_id",
+            "job_position_id",
+            "stage_id",
+            "hired",
+            "canceled",
+            "converted",
+            "created_at",
         ],
     )
 
@@ -1622,7 +1678,7 @@ class SimpleCandidateApplicationForm(forms.Form):
     
     def save(self):
         """
-        Update the CandidateApplication instance
+        Create or Update CandidateApplication instances
         """
         candidates = self.cleaned_data['candidates']
         recruitment = self.cleaned_data['recruitment']
@@ -1653,6 +1709,43 @@ class SimpleCandidateApplicationForm(forms.Form):
             
             self.instance.save()
             return [self.instance]
+        
+        elif candidates and recruitment and job_position:
+            # For creation, create applications for all selected candidates
+            created_applications = []
+            
+            for candidate in candidates:
+                # Check if application already exists for this candidate and recruitment
+                existing_application = CandidateApplication.objects.filter(
+                    email=candidate.email,
+                    recruitment_id=recruitment,
+                    job_position_id=job_position
+                ).first()
+                
+                if not existing_application:
+                    # Create new application
+                    application = CandidateApplication(
+                        name=candidate.name,
+                        email=candidate.email,
+                        mobile=candidate.mobile,
+                        profile=candidate.profile,
+                        resume=candidate.resume,
+                        portfolio=candidate.portfolio,
+                        address=candidate.address,
+                        country=candidate.country,
+                        state=candidate.state,
+                        city=candidate.city,
+                        zip=candidate.zip,
+                        gender=candidate.gender,
+                        dob=candidate.dob,
+                        recruitment_id=recruitment,
+                        job_position_id=job_position,
+                        source="pipeline"
+                    )
+                    application.save()
+                    created_applications.append(application)
+            
+            return created_applications
         
         return []
 

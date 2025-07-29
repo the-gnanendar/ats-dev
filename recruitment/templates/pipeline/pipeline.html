@@ -5,7 +5,50 @@
 <style>
   .oh-tabs__tab--active {
     border-right: solid 1px #dedede !important;
-}
+  }
+  
+  /* Secondary tabs styling */
+  .oh-tabs__tablist--secondary {
+    border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 1rem;
+  }
+  
+  .oh-tabs__tab--secondary {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+  
+  .oh-tabs__tab--secondary:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .oh-tabs__tab--secondary.oh-tabs__tab--active {
+    border-bottom-color: #007bff;
+    color: #007bff;
+    font-weight: 500;
+  }
+  
+  .oh-tabs__content--secondary {
+    display: none;
+  }
+  
+  .oh-tabs__content--secondary.oh-tabs__content--active {
+    display: block;
+  }
+  
+  .stage-type-header {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e9ecef;
+  }
+  
+  .stage-type-stages {
+    padding: 1rem 0;
+  }
+  
   .avatars {
     display: flex;
     padding: 8px 10px 8px 10px;
@@ -146,9 +189,15 @@
 
   <div id="ohMessages"></div>
   {% include 'pipeline/nav.html' %}
+  {% if not request.GET.recruitment_id %}
   <div class="oh-tabs oh-wrapper" hx-get="{% url 'pipeline-search' %}?{{request.GET.urlencode}}" hx-trigger="load" id="pipelineSearchContainer">
     <div class="animated-background"></div>
   </div>
+  {% else %}
+  <div class="oh-tabs oh-wrapper" id="pipelineSearchContainer">
+    {% include 'pipeline/components/pipeline_search_components.html' %}
+  </div>
+  {% endif %}
 
 <script>
   function submitForm(elem) {
@@ -225,6 +274,18 @@
     });
   });
   $(document).ready(function () {
+    {% if request.GET.recruitment_id %}
+    // If viewing a specific recruitment, activate the first tab automatically
+    var firstTab = $('.oh-tabs__tab:first');
+    if (firstTab.length) {
+        firstTab.addClass('fw-bold');
+        var firstTabContent = firstTab.attr('data-target');
+        if (firstTabContent) {
+            $('.oh-tabs__content').removeClass('oh-tabs__content--active');
+            $(firstTabContent).addClass('oh-tabs__content--active');
+        }
+    }
+    {% else %}
     $('.oh-tabs__tab').click(function (e) {
         // Remove fw-bold class from all tabs
         $('.oh-tabs__tab').removeClass('fw-bold');
@@ -243,6 +304,7 @@
         var tab = $(`[data-target="${activeTab}"]`);
         $(tab).addClass('fw-bold');
     }
-});
+    {% endif %}
+  });
 </script>
 {% include 'pipeline/footer_components.html' %} {% endblock %}

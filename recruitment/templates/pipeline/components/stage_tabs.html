@@ -1,0 +1,248 @@
+{% load i18n recruitmentfilters %}
+
+<!-- Individual Stage Tabs -->
+<ul class="oh-tabs__tablist oh-tabs__tablist--secondary">
+    {% for stage in ordered_stages %}
+    <li class="oh-tabs__tab oh-tabs__tab--secondary" onclick="switchStageTab(event)" 
+        data-target="#stage_{{rec.id}}_{{stage.id}}" 
+        data-recruitment-id="{{rec.id}}"
+        data-stage-id="{{stage.id}}"
+        data-stage-sequence="{{stage.sequence}}">
+        <div class="d-flex align-items-center">
+            <span class="me-2">{{stage.stage}}</span>
+            <span class="oh-badge oh-badge--secondary oh-badge--small oh-badge--round stage_count"
+                data-rec-stage-badge="{{rec.id}}"
+                id="stageCount{{stage.id}}">
+                0</span>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- Stage Tab Contents -->
+<div class="oh-tabs__contents oh-tabs__contents--secondary">
+    {% for stage in ordered_stages %}
+    <div class="oh-tabs__content oh-tabs__content--secondary" id="stage_{{rec.id}}_{{stage.id}}">
+        <!-- Movable #{{forloop.counter}} -->
+        <div class="oh-tabs__movable ui-sortable stage" data-stage-sequence="{{stage.sequence}}" data-stage-id="{{stage.id}}"
+            data-recruitment-id="{{rec.id}}" data-stage-type="{{stage.stage_type}}">
+            <div class="pipeline-header" onclick="$(this).next().toggleClass('d-none')" 
+                {% if request.user.employee_get in stage.stage_managers.all %}
+                style=" background-color: hsl(38.08deg 100% 50% / 8%);" {% endif %}>
+                <div class="pipeline-toggle w-75" data-stage-id="{{stage.id}}">
+                    <div class="oh-tabs__input-badge-container">
+                        <span class="oh-badge oh-badge--secondary oh-badge--small oh-badge--round ms-2 mr-2 stage_count"
+                            data-rec-stage-badge="{{rec.id}}"
+                            id="stageCount{{stage.id}}">
+                            0</span>
+                        <input class="oh-tabs__movable-title oh-table__editable-input" value="{{stage}}"
+                        {% if perms.recruitment.change_stage or request.user|recruitment_manages:rec %}
+                            hx-post="{% url 'stage-title-update' stage.id %}" name='stage' {% endif %} hx-target="#ohMessages"
+                            style="min-width: 160px;" readonly="" />
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between custom-scroll">
+                    <div class="avatars" id="avatarsContainer">
+                        <!-- Stage Managers -->
+                        {% if stage.stage_managers.exists %}
+                        <div class="d-flex align-items-center me-2">
+                            {% for manager in stage.stage_managers.all %}
+                            <a href="#" class="avatars__item" title="{{manager}}"><img class="avatar" src="{{manager.get_avatar}}"
+                                    alt=""></a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Stage Interviewers -->
+                        {% if stage.stage_interviewers.exists %}
+                        <div class="d-flex align-items-center">
+                            {% for interviewer in stage.stage_interviewers.all %}
+                            <a href="#" class="avatars__item" title="{{interviewer}}"><img class="avatar" src="{{interviewer.get_avatar}}"
+                                    alt=""></a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="d-flex">
+                    {% if stage.stage_type == 'sourced' and perms.recruitment.add_candidate or request.user.employee_get in stage.stage_managers.all or request.user.employee_get in rec.recruitment_managers.all %}
+                    <button onclick="event.stopPropagation()" class="oh-btn oh-btn--secondary-outline float-end ms-3 add-candidate-btn"
+                        hx-get="{% url 'candidate-application-create-from-pipeline' %}?stage_id={{stage.id}}" hx-target="#createTarget"
+                        data-toggle="oh-modal-toggle" data-target="#createModal" title="Add Candidate">
+                        <ion-icon name="add-outline" class="m-0 md hydrated" role="img" aria-label="add outline"></ion-icon>
+                    </button>
+                    {% endif %}
+                    {% if perms.recruitment.change_stage or request.user|recruitment_manages:rec or perms.recruitment.delete_stage or request.user.employee_get in stage.stage_managers.all or request.user.employee_get in rec.recruitment_managers.all %}
+                        <div onclick="event.stopPropagation()" class="oh-dropdown" x-data="{open: false}">
+                            <button class="oh-btn oh-stop-prop oh-btn--transparent oh-accordion-meta__btn" @click="open = !open"
+                                @click.outside="open = false" title="{% trans 'Actions' %}">
+                                <ion-icon name="ellipsis-vertical"></ion-icon>
+                            </button>
+                            <div class="oh-dropdown__menu oh-dropdown__menu--right" x-show="open">
+                                <ul class="oh-dropdown__items">
+                                    {% if perms.recruitment.change_stage or request.user|recruitment_manages:rec or request.user.employee_get in stage.stage_managers.all %}
+                                    <li class="oh-dropdown__item" style="cursor: pointer;">
+                                        <a hx-get='{% url "stage-update-pipeline" stage.id %}' hx-target="#objectUpdateModalTarget"
+                                            data-toggle="oh-modal-toggle" data-target="#objectUpdateModal"
+                                            class="oh-dropdown__link">{% trans "Edit" %}</a>
+                                    </li>
+                                    <li class="oh-dropdown__item" style="cursor: pointer;">
+                                        <a hx-get="{% url 'send-mail' %}?stage_id={{stage.id}}" hx-target="#objectCreateModalTarget"
+                                        data-toggle="oh-modal-toggle" data-target="#objectCreateModal" class="oh-dropdown__link">
+                                        {% trans "Bulk mail" %}
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                    {% if perms.recruitment.delete_stage %}
+                                    <li class="oh-dropdown__item">
+                                        <form method="post" action="{% url 'rec-stage-delete' stage.id %}"
+                                        onsubmit="return confirm('{% trans 'Are you sure you want to delete this stage?' %}');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="oh-dropdown__link oh-dropdown__link--danger">
+                                                {% trans "Delete" %}
+                                            </button>
+                                        </form>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="oh-tabs__movable-body position-relative pipeline_items recruitment_items {% if stage.stage_type == 'cancelled' %}d-none{% endif %}"
+                id="pipelineStageContainer{{stage.id}}"
+                data-stage-toggle-id="{{stage.id}}"
+                hx-get="{% url 'candidate-stage-component' %}?stage_id={{stage.id}}"
+                hx-trigger="load">
+                <div class="animated-background"></div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+function switchStageTab(event) {
+    event.preventDefault();
+    var clickedTab = $(event.currentTarget);
+    var targetId = clickedTab.attr('data-target');
+    var recruitmentId = clickedTab.attr('data-recruitment-id');
+    
+    // Remove active class from all tabs in this recruitment
+    $(`[data-recruitment-id="${recruitmentId}"]`).removeClass('oh-tabs__tab--active');
+    $(`#tab_rec_${recruitmentId} .oh-tabs__content--secondary`).removeClass('oh-tabs__content--active');
+    
+    // Add active class to clicked tab
+    clickedTab.addClass('oh-tabs__tab--active');
+    $(targetId).addClass('oh-tabs__content--active');
+    
+    // Store active stage tab in localStorage
+    localStorage.setItem(`activeStageTab_${recruitmentId}`, targetId);
+}
+
+// Initialize stage tabs on page load
+$(document).ready(function() {
+    $('.oh-tabs__content').each(function() {
+        var recruitmentId = $(this).attr('id').replace('tab_rec_', '');
+        var activeTab = localStorage.getItem(`activeStageTab_${recruitmentId}`);
+        
+        if (activeTab && $(activeTab).length) {
+            // Activate the stored tab
+            $(`[data-target="${activeTab}"]`).addClass('oh-tabs__tab--active');
+            $(activeTab).addClass('oh-tabs__content--active');
+        } else {
+            // Activate the first tab (lowest sequence number)
+            var firstTab = $(this).find('.oh-tabs__tab--secondary').sort(function(a, b) {
+                return parseInt($(a).attr('data-stage-sequence')) - parseInt($(b).attr('data-stage-sequence'));
+            }).first();
+            var firstContent = $(this).find('.oh-tabs__content--secondary').first();
+            if (firstTab.length && firstContent.length) {
+                firstTab.addClass('oh-tabs__tab--active');
+                firstContent.addClass('oh-tabs__content--active');
+            }
+        }
+    });
+});
+
+// Function to add new stage tab dynamically
+function addNewStageTab(stageData) {
+    var recruitmentId = stageData.recruitment_id;
+    var stageId = stageData.stage_id;
+    var stageName = stageData.stage_name;
+    var stageSequence = stageData.sequence;
+    
+    // Create new tab
+    var newTab = $('<li class="oh-tabs__tab oh-tabs__tab--secondary" onclick="switchStageTab(event)" ' +
+        'data-target="#stage_' + recruitmentId + '_' + stageId + '" ' +
+        'data-recruitment-id="' + recruitmentId + '" ' +
+        'data-stage-id="' + stageId + '" ' +
+        'data-stage-sequence="' + stageSequence + '">' +
+        '<div class="d-flex align-items-center">' +
+            '<span class="me-2">' + stageName + '</span>' +
+            '<span class="oh-badge oh-badge--secondary oh-badge--small oh-badge--round stage_count" ' +
+                'data-rec-stage-badge="' + recruitmentId + '" ' +
+                'id="stageCount' + stageId + '">' +
+                '0</span>' +
+        '</div>' +
+    '</li>');
+    
+    // Create new tab content
+    var newContent = $('<div class="oh-tabs__content oh-tabs__content--secondary" id="stage_' + recruitmentId + '_' + stageId + '">' +
+        '<div class="stage-header mb-3">' +
+            '<div class="d-flex justify-content-between align-items-center">' +
+                '<h6 class="text-muted mb-0">' + stageName + ' Stage</h6>' +
+                '<div class="d-flex">' +
+                    '<button onclick="event.stopPropagation()" ' +
+                        'class="oh-btn oh-btn--secondary-outline me-2" ' +
+                        'hx-get="/recruitment/add-candidate-to-stage/?stage_id=' + stageId + '" ' +
+                        'hx-target="#createTarget" ' +
+                        'data-toggle="oh-modal-toggle" ' +
+                        'data-target="#createModal" ' +
+                        'title="Add Candidate">' +
+                        '<ion-icon name="add-outline" class="me-1"></ion-icon>' +
+                        'Add Candidate' +
+                    '</button>' +
+                    '<div class="oh-dropdown" x-data="{open: false}">' +
+                        '<button class="oh-btn oh-btn--secondary-outline" @click="open = !open" ' +
+                            '@click.outside="open = false" title="Actions">' +
+                            '<ion-icon name="ellipsis-vertical"></ion-icon>' +
+                        '</button>' +
+                        '<div class="oh-dropdown__menu oh-dropdown__menu--right" x-show="open">' +
+                            '<ul class="oh-dropdown__items">' +
+                                '<li class="oh-dropdown__item">' +
+                                    '<a hx-get="/recruitment/stage-update-pipeline/' + stageId + '/" hx-target="#objectUpdateModalTarget" ' +
+                                        'data-toggle="oh-modal-toggle" data-target="#objectUpdateModal" ' +
+                                        'class="oh-dropdown__link">Edit Stage</a>' +
+                                '</li>' +
+                                '<li class="oh-dropdown__item">' +
+                                    '<a hx-get="/recruitment/send-mail/?stage_id=' + stageId + '" hx-target="#objectCreateModalTarget" ' +
+                                        'data-toggle="oh-modal-toggle" data-target="#objectCreateModal" class="oh-dropdown__link">' +
+                                        'Bulk mail' +
+                                    '</a>' +
+                                '</li>' +
+                            '</ul>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+        '<div class="stage-content">' +
+            '<div class="oh-tabs__movable-body position-relative pipeline_items recruitment_items" ' +
+                'id="pipelineStageContainer' + stageId + '" ' +
+                'data-stage-toggle-id="' + stageId + '" ' +
+                'hx-get="/recruitment/candidate-stage-component/?stage_id=' + stageId + '" ' +
+                'hx-trigger="load">' +
+                '<div class="animated-background"></div>' +
+            '</div>' +
+        '</div>' +
+    '</div>');
+    
+    // Add new tab and content to the DOM
+    $('#tab_rec_' + recruitmentId + ' .oh-tabs__tablist--secondary').append(newTab);
+    $('#tab_rec_' + recruitmentId + ' .oh-tabs__contents--secondary').append(newContent);
+    
+    // Activate the new tab
+    switchStageTab({preventDefault: function(){}, currentTarget: newTab});
+}
+</script> 

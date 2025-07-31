@@ -8,7 +8,7 @@ from django.contrib.auth.context_processors import PermWrapper
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from recruitment.models import InterviewSchedule
+from recruitment.models import InterviewScheduleApplication
 from recruitment.templatetags.recruitmentfilters import (
     is_recruitmentmangers,
     is_stagemanager,
@@ -24,9 +24,14 @@ SUBMENUS = [
         "redirect": reverse("recruitment-dashboard"),
     },
     {
-        "menu": _("Recruitment Survey"),
-        "redirect": reverse("recruitment-survey-question-template-view"),
-        "accessibility": "recruitment.sidebar.survey_accessibility",
+        "menu": _("Jobs"),
+        "redirect": reverse("recruitment-view"),
+        "accessibility": "recruitment.sidebar.recruitment_accessibility",
+    },
+    {
+        "menu": _("Job Applications"),
+        "redirect": reverse("candidate-application-view"),
+        "accessibility": "recruitment.sidebar.candidate_applications_accessibility",
     },
     {
         "menu": _("Candidates"),
@@ -34,24 +39,9 @@ SUBMENUS = [
         "accessibility": "recruitment.sidebar.candidates_accessibility",
     },
     {
-        "menu": _("Candidate Applications"),
-        "redirect": reverse("candidate-application-view"),
-        "accessibility": "recruitment.sidebar.candidate_applications_accessibility",
-    },
-    {
         "menu": _("Interview"),
-        "redirect": reverse("interview-view"),
+        "redirect": reverse("interview-view-application"),
         "accessibility": "recruitment.sidebar.interview_accessibility",
-    },
-    {
-        "menu": _("Recruitment"),
-        "redirect": reverse("recruitment-view"),
-        "accessibility": "recruitment.sidebar.recruitment_accessibility",
-    },
-    {
-        "menu": _("Open Jobs"),
-        "redirect": reverse("open-recruitments"),
-        "accessibility": "recruitment.sidebar.recruitment_accessibility",
     },
     {
         "menu": _("Stages"),
@@ -62,6 +52,16 @@ SUBMENUS = [
         "menu": _("Skill Zone"),
         "redirect": reverse("skill-zone-view"),
         "accessibility": "recruitment.sidebar.skill_zone_accessibility",
+    },
+    {
+        "menu": _("Job Survey"),
+        "redirect": reverse("recruitment-survey-question-template-view"),
+        "accessibility": "recruitment.sidebar.survey_accessibility",
+    },
+    {
+        "menu": _("Open Jobs"),
+        "redirect": reverse("open-recruitments"),
+        "accessibility": "recruitment.sidebar.recruitment_accessibility",
     },
 ]
 
@@ -111,7 +111,7 @@ def recruitment_accessibility(
 def interview_accessibility(
     request, _submenu: dict = {}, user_perms: PermWrapper = [], *args, **kwargs
 ) -> bool:
-    interviews = InterviewSchedule.objects.all()
+    interviews = InterviewScheduleApplication.objects.all()
     interviewers = []
     for interview in interviews:
         for emp in interview.employee_id.all():
@@ -124,7 +124,7 @@ def interview_accessibility(
     else:
         view_interview = False
 
-    return request.user.has_perm("recruitment.view_interviewschedule") or view_interview
+    return request.user.has_perm("recruitment.view_interviewscheduleapplication") or view_interview
 
 
 def stage_accessibility(
@@ -136,10 +136,8 @@ def stage_accessibility(
 def skill_zone_accessibility(
     request, _submenu: dict = {}, user_perms: PermWrapper = [], *args, **kwargs
 ) -> bool:
-    return is_stagemanager(request.user) or request.user.has_perm(
-        "recruitment.view_skillzone"
-    )
+    return request.user.has_perm("recruitment.view_skillzone")
 
 
 def dashboard_accessibility(request, submenu, user_perms, *args, **kwargs):
-    return is_stagemanager(request.user) or "recruitment" in user_perms
+    return request.user.has_perm("recruitment.view_recruitment")

@@ -48,7 +48,7 @@ from recruitment.models import (
     Candidate,
     CandidateDocument,
     CandidateDocumentRequest,
-    InterviewSchedule,
+
     JobPosition,
     Recruitment,
     RecruitmentSurvey,
@@ -68,7 +68,7 @@ from recruitment.models import (
     InterviewScheduleApplication,
     StageNoteApplication,
     CandidateWorkExperience, CandidateWorkProject, 
-    CandidateEducation, CandidateCertification, CandidateSkill, CandidateSkillRating, LinkedInAccount, Company
+    CandidateEducation, CandidateCertification, CandidateSkill, LinkedInAccount, Company, CandidateApplicationSkillRating
 )
 
 logger = logging.getLogger(__name__)
@@ -1279,75 +1279,7 @@ class RejectedCandidateForm(ModelForm):
         self.fields["candidate_id"].widget = self.fields["candidate_id"].hidden_widget()
 
 
-class ScheduleInterviewForm(BaseModelForm):
-    """
-    ScheduleInterviewForm
-    """
 
-    class Meta:
-        model = InterviewSchedule
-        fields = "__all__"
-        exclude = ["is_active"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["interview_date"].widget = forms.DateInput(
-            attrs={"type": "date", "class": "oh-input w-100"}
-        )
-        self.fields["interview_time"].widget = forms.TimeInput(
-            attrs={"type": "time", "class": "oh-input w-100"}
-        )
-
-    def clean(self):
-
-        instance = self.instance
-        cleaned_data = super().clean()
-        interview_date = cleaned_data.get("interview_date")
-        interview_time = cleaned_data.get("interview_time")
-        managers = cleaned_data["employee_id"]
-        if not instance.pk and interview_date and interview_date < date.today():
-            self.add_error("interview_date", _("Interview date cannot be in the past."))
-
-        if not instance.pk and interview_time:
-            now = datetime.now().time()
-            if (
-                not instance.pk
-                and interview_date == date.today()
-                and interview_time < now
-            ):
-                self.add_error(
-                    "interview_time", _("Interview time cannot be in the past.")
-                )
-
-        if apps.is_installed("leave"):
-            from leave.models import LeaveRequest
-
-            leave_employees = LeaveRequest.objects.filter(
-                employee_id__in=managers, status="approved"
-            )
-        else:
-            leave_employees = []
-
-        employees = [
-            leave.employee_id.get_full_name()
-            for leave in leave_employees
-            if interview_date in leave.requested_dates()
-        ]
-
-        if employees:
-            self.add_error(
-                "employee_id", _(f"{employees} have approved leave on this date")
-            )
-
-        return cleaned_data
-
-    def as_p(self, *args, **kwargs):
-        """
-        Render the form fields as HTML table rows with Bootstrap styling.
-        """
-        context = {"form": self}
-        table_html = render_to_string("common_form.html", context)
-        return table_html
 
 
 class SkillsForm(ModelForm):
@@ -1811,12 +1743,78 @@ class InterviewScheduleApplicationForm(ModelForm):
     class Meta:
         model = InterviewScheduleApplication
         fields = "__all__"
-        exclude = ["is_active", "candidate_application_id"]
+        exclude = ["is_active", "interview_end_time"]
         widgets = {
             "interview_date": forms.DateInput(attrs={"type": "date"}),
-            "interview_time": forms.TimeInput(attrs={"type": "time"}),
+            "interview_start_time": forms.TimeInput(attrs={"type": "time"}),
             "description": forms.Textarea(attrs={"rows": 3}),
+            "candidate_application_id": forms.HiddenInput(),
         }
+    
+    def __init__(self, candidate_app=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Set the candidate application if provided
+        if candidate_app:
+            self.fields['candidate_application_id'].initial = candidate_app
+        
+        # Get all potential interviewers based on the candidate application's recruitment
+        if candidate_app:
+            candidate_app_obj = candidate_app
+        elif hasattr(self, 'instance') and hasattr(self.instance, 'candidate_application_id'):
+            candidate_app_obj = self.instance.candidate_application_id
+        else:
+            candidate_app_obj = None
+        
+        if candidate_app_obj:
+            recruitment = candidate_app_obj.recruitment_id
+            
+            # Collect all potential interviewers
+            all_interviewers = []
+            
+            # 1. Recruitment managers (Delivery/Account Managers)
+            if recruitment and recruitment.recruitment_managers.exists():
+                all_interviewers.extend(recruitment.recruitment_managers.all())
+            
+            # 2. Recruiters (default stage managers)
+            if recruitment and recruitment.default_stage_manager.exists():
+                all_interviewers.extend(recruitment.default_stage_manager.all())
+            
+            # 3. Stage interviewers (if candidate has a stage)
+            if candidate_app_obj.stage_id and candidate_app_obj.stage_id.stage_interviewers.exists():
+                all_interviewers.extend(candidate_app_obj.stage_id.stage_interviewers.all())
+            
+            # 4. L1/L2/L3 interviewers based on stage type
+            if candidate_app_obj.stage_id:
+                stage_type = candidate_app_obj.stage_id.stage_type
+                if stage_type == "l1_interview" and recruitment.l1_interviewer.exists():
+                    all_interviewers.extend(recruitment.l1_interviewer.all())
+                elif stage_type == "l2_interview" and recruitment.l2_interviewer.exists():
+                    all_interviewers.extend(recruitment.l2_interviewer.all())
+                elif stage_type == "l3_interview" and recruitment.l3_interviewer.exists():
+                    all_interviewers.extend(recruitment.l3_interviewer.all())
+            
+            # Remove duplicates while preserving order
+            unique_interviewers = []
+            seen_ids = set()
+            for interviewer in all_interviewers:
+                if interviewer.id not in seen_ids:
+                    unique_interviewers.append(interviewer)
+                    seen_ids.add(interviewer.id)
+            
+            # Update the employee_id field queryset
+            if unique_interviewers:
+                self.fields['employee_id'].queryset = Employee.objects.filter(
+                    id__in=[emp.id for emp in unique_interviewers]
+                )
+                # Set initial values for the interviewers
+                self.fields['employee_id'].initial = [emp.id for emp in unique_interviewers]
+            else:
+                # Fallback to all active employees if no specific interviewers found
+                self.fields['employee_id'].queryset = Employee.objects.filter(is_active=True)
+        else:
+            # Default to all active employees if no context available
+            self.fields['employee_id'].queryset = Employee.objects.filter(is_active=True)
 
 
 class ApplicationForm(ModelForm):
@@ -2089,8 +2087,8 @@ class CandidateEducationForm(BaseModelForm):
             'end_date': forms.DateInput(attrs={'type': 'date'}),
             'graduation_date': forms.DateInput(attrs={'type': 'date'}),
             'is_current': forms.CheckboxInput(),
-            'gpa': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '4'}),
-            'max_gpa': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '4'}),
+            'gpa': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'max_gpa': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'honors': forms.Textarea(attrs={'rows': 3}),
             'activities': forms.Textarea(attrs={'rows': 3}),
             'description': forms.Textarea(attrs={'rows': 4}),
@@ -2098,12 +2096,7 @@ class CandidateEducationForm(BaseModelForm):
     
     def clean(self):
         cleaned_data = super().clean()
-        gpa = cleaned_data.get('gpa')
-        max_gpa = cleaned_data.get('max_gpa')
-        
-        if gpa and max_gpa and gpa > max_gpa:
-            raise forms.ValidationError(_("GPA cannot be higher than maximum GPA."))
-        
+        # Removed GPA validation - no maximum GPA restriction
         return cleaned_data
 
 
@@ -2178,64 +2171,7 @@ class CandidateSkillForm(BaseModelForm):
         return super().save(commit)
 
 
-class CandidateSkillRatingForm(BaseModelForm):
-    """
-    Form for candidate skill ratings
-    """
-    verbose_name = _("Skill Rating")
-    
-    class Meta:
-        model = CandidateSkillRating
-        fields = [
-            'recruitment', 'stage', 'skill_name', 'skill_category', 'rating', 'notes'
-        ]
-        widgets = {
-            'recruitment': forms.Select(attrs={'class': 'form-control'}),
-            'stage': forms.Select(attrs={'class': 'form-control'}),
-            'skill_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'skill_category': forms.Select(attrs={'class': 'form-control'}),
-            'rating': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': '0.0',
-                'max': '5.0',
-                'step': '0.1',
-                'placeholder': '0.0 - 5.0'
-            }),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
-        }
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['skill_name'].widget.attrs.update({'placeholder': _('Enter skill name')})
-        self.fields['notes'].widget.attrs.update({'placeholder': _('Add notes about the rating')})
-        
-        # Make recruitment and stage required only if not provided in initial data
-        if not self.initial.get('recruitment'):
-            self.fields['recruitment'].required = True
-        else:
-            self.fields['recruitment'].required = False
-            self.fields['recruitment'].widget = forms.HiddenInput()
-            
-        if not self.initial.get('stage'):
-            self.fields['stage'].required = True
-        else:
-            self.fields['stage'].required = False
-            self.fields['stage'].widget = forms.HiddenInput()
-    
-    def clean_rating(self):
-        rating = self.cleaned_data.get('rating')
-        if rating is not None:
-            if rating < 0.0 or rating > 5.0:
-                raise ValidationError(_("Rating must be between 0.0 and 5.0"))
-        return rating
-    
-    def as_p(self, *args, **kwargs):
-        """
-        Render the form fields as HTML table rows with Bootstrap styling.
-        """
-        context = {"form": self}
-        table_html = render_to_string("common_form.html", context)
-        return table_html
+
 
 
 # Inline FormSets for Dynamic Addition/Deletion
@@ -2253,6 +2189,7 @@ CandidateWorkExperienceFormSet = inlineformset_factory(
     ]
 )
 
+# Nested formset for projects within work experience
 CandidateWorkProjectFormSet = inlineformset_factory(
     CandidateWorkExperience,
     CandidateWorkProject,
@@ -2509,3 +2446,167 @@ class SimpleCandidateApplicationUpdateForm(forms.Form):
             return [self.instance]
         
         return []
+
+class CandidateWorkExperienceWithProjectsForm(BaseModelForm):
+    """
+    Form that combines work experience and projects in a single form
+    """
+    verbose_name = _("Work Experience with Projects")
+    
+    class Meta:
+        model = CandidateWorkExperience
+        fields = [
+            'company_name', 'company_website', 'company_location',
+            'job_title', 'department', 'start_date', 'end_date',
+            'is_current', 'job_description', 'achievements',
+            'employment_type', 'salary', 'currency'
+        ]
+        widgets = {
+            'company_name': forms.TextInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('Company Name')
+            }),
+            'company_website': forms.URLInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('Company Website')
+            }),
+            'company_location': forms.TextInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('Company Location')
+            }),
+            'job_title': forms.TextInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('Job Title')
+            }),
+            'department': forms.TextInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('Department')
+            }),
+            'start_date': forms.DateInput(attrs={
+                'class': 'oh-input w-100',
+                'type': 'date'
+            }),
+            'end_date': forms.DateInput(attrs={
+                'class': 'oh-input w-100',
+                'type': 'date'
+            }),
+            'is_current': forms.CheckboxInput(attrs={
+                'class': 'oh-checkbox'
+            }),
+            'job_description': forms.Textarea(attrs={
+                'class': 'oh-textarea w-100',
+                'rows': 4,
+                'placeholder': _('Job Description')
+            }),
+            'achievements': forms.Textarea(attrs={
+                'class': 'oh-textarea w-100',
+                'rows': 4,
+                'placeholder': _('Key Achievements')
+            }),
+            'employment_type': forms.Select(attrs={
+                'class': 'oh-select w-100'
+            }),
+            'salary': forms.NumberInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('Salary')
+            }),
+            'currency': forms.TextInput(attrs={
+                'class': 'oh-input w-100',
+                'placeholder': _('Currency (e.g., USD)')
+            })
+        }
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+        is_current = cleaned_data.get('is_current')
+        
+        if start_date and end_date and start_date > end_date:
+            raise forms.ValidationError(_("Start date cannot be after end date."))
+        
+        if is_current and end_date:
+            raise forms.ValidationError(_("End date should not be set for current position."))
+        
+        return cleaned_data
+
+# Combined formset for work experience with projects
+CandidateWorkExperienceWithProjectsFormSet = inlineformset_factory(
+    Candidate,
+    CandidateWorkExperience,
+    form=CandidateWorkExperienceWithProjectsForm,
+    extra=1,
+    can_delete=True,
+    fields=[
+        'company_name', 'company_website', 'company_location',
+        'job_title', 'department', 'start_date', 'end_date',
+        'is_current', 'job_description', 'achievements',
+        'employment_type', 'salary', 'currency'
+    ]
+)
+
+class CandidateApplicationSkillRatingForm(BaseModelForm):
+    """
+    Form for candidate application skill ratings
+    """
+    verbose_name = _("Application Skill Rating")
+    
+    class Meta:
+        model = CandidateApplicationSkillRating
+        fields = [
+            'candidate_application', 'stage', 'employee', 'skill_name', 'skill_category', 'rating', 'notes'
+        ]
+        widgets = {
+            'candidate_application': forms.Select(attrs={'class': 'form-control'}),
+            'stage': forms.Select(attrs={'class': 'form-control'}),
+            'employee': forms.Select(attrs={'class': 'form-control'}),
+            'skill_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'skill_category': forms.Select(attrs={'class': 'form-control'}),
+            'rating': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0.0',
+                'max': '5.0',
+                'step': '0.1',
+                'placeholder': '0.0 - 5.0'
+            }),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['skill_name'].widget.attrs.update({'placeholder': _('Enter skill name')})
+        self.fields['notes'].widget.attrs.update({'placeholder': _('Add notes about the rating')})
+        
+        # Make candidate_application and stage required only if not provided in initial data
+        if not self.initial.get('candidate_application'):
+            self.fields['candidate_application'].required = True
+        else:
+            self.fields['candidate_application'].required = False
+            self.fields['candidate_application'].widget = forms.HiddenInput()
+            
+        if not self.initial.get('stage'):
+            self.fields['stage'].required = True
+        else:
+            self.fields['stage'].required = False
+            self.fields['stage'].widget = forms.HiddenInput()
+            
+        if not self.initial.get('employee'):
+            self.fields['employee'].required = True
+        else:
+            self.fields['employee'].required = False
+            self.fields['employee'].widget = forms.HiddenInput()
+    
+    def clean_rating(self):
+        rating = self.cleaned_data.get('rating')
+        if rating is not None:
+            if rating < 0.0 or rating > 5.0:
+                raise forms.ValidationError(_("Rating must be between 0.0 and 5.0"))
+        return rating
+    
+    def as_p(self, *args, **kwargs):
+        """
+        Render the form fields as HTML table rows with Bootstrap styling.
+        """
+        context = {"form": self}
+        table_html = render_to_string("common_form.html", context)
+        return table_html

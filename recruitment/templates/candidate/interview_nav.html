@@ -72,8 +72,8 @@
                 </div>
                 <div class="oh-btn-group ml-2">
                     <div class="oh-dropdown">
-                        {% if perms.recruitment.add_interviewschedule %}
-                        <a hx-get='{% url "create-interview-schedule" %}' hx-target="#createTarget" hx-swap="innerHTML"
+                        {% if perms.recruitment.add_interviewscheduleapplication %}
+                        <a hx-get='{% url "interview-view-application" %}' hx-target="#createTarget" hx-swap="innerHTML"
                             data-target="#createModal" data-toggle="oh-modal-toggle" class='oh-btn oh-btn--secondary'>
                             <ion-icon name="add-sharp" class="mr-1"></ion-icon>{% trans "Create" %}
                         </a>

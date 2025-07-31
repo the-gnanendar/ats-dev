@@ -1,11 +1,14 @@
 {% load recruitmentfilters %}
-<h1>{{history.0.name}} history</h1>
+<h1>{{candidate.name}} history</h1>
+
+<!-- Stage Changes Section -->
+<h3>{% trans "Stage Changes" %}</h3>
 <table class='table table-striped'>
     <tr>
-        <th>Stage</th>
-        <th>Scheduled</th>
-        <th>Updated at</th>
-        <th>Changed by</th>
+        <th>{% trans "Stage" %}</th>
+        <th>{% trans "Scheduled" %}</th>
+        <th>{% trans "Updated at" %}</th>
+        <th>{% trans "Changed by" %}</th>
     </tr>
     {% for candidate_history in history %}
     {% if candidate_history.stage_id != None %}
@@ -21,9 +24,7 @@
             {{candidate_history.history_date}}
             {% else %}
             {{candidate_history.history_date}}
-
             {% endif %}
-
         </td>
         <td>
             {{candidate_history.history_user_id|employee}}
@@ -32,3 +33,137 @@
     {% endif %}
     {% endfor %}
 </table>
+
+<!-- Pipeline Events Section -->
+{% if pipeline_events %}
+<h3>{% trans "Pipeline Events" %}</h3>
+<div class="timeline">
+    {% for event in pipeline_events %}
+    <div class="timeline-item">
+        <div class="timeline-marker">
+            {% if event.type == 'skill_rating' %}
+                <i class="fas fa-star text-warning"></i>
+            {% elif event.type == 'skill_rating_note' %}
+                <i class="fas fa-sticky-note text-info"></i>
+            {% elif event.type == 'stage_note' %}
+                <i class="fas fa-comment text-primary"></i>
+            {% elif event.type == 'application_note' %}
+                <i class="fas fa-file-alt text-secondary"></i>
+            {% endif %}
+        </div>
+        <div class="timeline-content">
+            <div class="event-header">
+                <strong>
+                    {% if event.type == 'skill_rating' %}
+                        {% trans "Skill Rating" %} - {{ event.skill_name }} ({{ event.rating }}/5)
+                    {% elif event.type == 'skill_rating_note' %}
+                        {% trans "Skill Rating Note" %}
+                    {% elif event.type == 'stage_note' %}
+                        {% trans "Stage Note" %}
+                    {% elif event.type == 'application_note' %}
+                        {% trans "Application Note" %}
+                    {% endif %}
+                </strong>
+                <span class="event-meta">
+                    {% trans "by" %} {{ event.rated_by|default:event.added_by }} 
+                    {% trans "on" %} 
+                    {% if event.rated_at %}
+                        {{ event.rated_at|date:"M d, Y H:i" }}
+                    {% else %}
+                        {{ event.added_at|date:"M d, Y H:i" }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="event-details">
+                <small class="text-muted">
+                    {% trans "Recruitment" %}: {{ event.recruitment }} | 
+                    {% trans "Stage" %}: {{ event.stage }}
+                </small>
+            </div>
+            {% if event.type == 'skill_rating' and event.notes %}
+            <div class="event-notes mt-2">
+                <strong>{% trans "Notes" %}:</strong> {{ event.notes }}
+            </div>
+            {% endif %}
+            {% if event.type in 'skill_rating_note,stage_note,application_note' %}
+            <div class="event-notes mt-2">
+                <strong>{% trans "Note" %}:</strong> {{ event.note_content }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin-top: 1rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+    padding-left: 2rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -1.5rem;
+    top: 0.25rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.timeline-marker i {
+    font-size: 0.5rem;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    border-left: 3px solid #007bff;
+}
+
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.event-meta {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.event-details {
+    margin-bottom: 0.5rem;
+}
+
+.event-notes {
+    background: #fff;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    border-left: 2px solid #28a745;
+}
+</style>
+{% endif %}

@@ -9,7 +9,6 @@ from django.contrib import admin
 from recruitment.models import (
     Candidate,
     CandidateRating,
-    InterviewSchedule,
     Recruitment,
     RecruitmentSurvey,
     RecruitmentSurveyAnswer,
@@ -27,7 +26,7 @@ from recruitment.models import (
     CandidateEducation,
     CandidateCertification,
     CandidateSkill,
-    CandidateSkillRating
+    CandidateApplicationSkillRating
 )
 
 # Register your models here.
@@ -158,7 +157,7 @@ admin.site.register(Skill)
 admin.site.register(TechnicalSkill)
 admin.site.register(NonTechnicalSkill)
 admin.site.register(SkillZone)
-admin.site.register(InterviewSchedule)
+
 
 
 # CandidateApplication Admin
@@ -310,7 +309,7 @@ class InterviewScheduleApplicationAdmin(admin.ModelAdmin):
     list_display = [
         "candidate_application_id",
         "interview_date",
-        "interview_time", 
+        "interview_start_time", 
         "completed",
         "get_interviewers",
     ]
@@ -325,7 +324,7 @@ class InterviewScheduleApplicationAdmin(admin.ModelAdmin):
         "candidate_application_id__email",
         "description",
     ]
-    ordering = ["-interview_date", "-interview_time"]
+    ordering = ["-interview_date", "-interview_start_time"]
     
     def get_interviewers(self, obj):
         """Display list of interviewers"""
@@ -460,12 +459,12 @@ class CandidateSkillAdmin(admin.ModelAdmin):
     ordering = ['skill_category', 'skill_name']
 
 
-@admin.register(CandidateSkillRating)
-class CandidateSkillRatingAdmin(admin.ModelAdmin):
-    list_display = ['candidate', 'recruitment', 'stage', 'skill_name', 'skill_category', 'rating', 'rated_by', 'rated_on']
-    list_filter = ['skill_category', 'rating', 'rated_by', 'rated_on', 'recruitment', 'stage']
-    search_fields = ['candidate__name', 'skill_name', 'rated_by__user__username', 'recruitment__title', 'stage__stage']
-    ordering = ['-rated_on', 'candidate__name']
+@admin.register(CandidateApplicationSkillRating)
+class CandidateApplicationSkillRatingAdmin(admin.ModelAdmin):
+    list_display = ['candidate_application', 'stage', 'skill_name', 'skill_category', 'rating', 'employee', 'rated_on']
+    list_filter = ['skill_category', 'rating', 'employee', 'rated_on', 'stage']
+    search_fields = ['candidate_application__name', 'skill_name', 'employee__user__username', 'stage__stage']
+    ordering = ['-rated_on', 'candidate_application__name']
     readonly_fields = ['rated_on']
     date_hierarchy = 'rated_on'
-    list_select_related = ['candidate', 'recruitment', 'stage', 'rated_by']
+    list_select_related = ['candidate_application', 'stage', 'employee']

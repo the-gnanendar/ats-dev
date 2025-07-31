@@ -206,9 +206,9 @@
                         <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#survey">{% trans "Survey" %}</a>
                     </li>
                     <li class="oh-general__tab">
-                        <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#note"
-                            hx-get="{% url 'view-note' candidate.id %}" hx-target="#note">
-                            {% trans "Notes" %}
+                        <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#combined-rating-notes"
+                            hx-get="{% url 'view-combined-rating-notes' candidate.id %}" hx-target="#combined-rating-notes">
+                            {% trans "Rating & Notes" %}
                         </a>
                     </li>
                     <li class="oh-general__tab">
@@ -217,11 +217,6 @@
                     <li class="oh-general__tab">
                         <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#document">{% trans "Documents" %}</a>
                     </li>
-                    {% if perms.recruitment.view_candidate %}
-                        <li class="oh-general__tab">
-                            <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#rating">{% trans "Rating" %}</a>
-                        </li>
-                    {% endif %}
                     {% if candidate.converted %}
                         <li class="oh-general__tab">
                             <a href="#" class="oh-general__tab-link" data-action="general-tab" data-target="#onboarding">{% trans "Onboarding" %}</a>
@@ -372,7 +367,13 @@
                     </div>
                 </div>
 
-                <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="note">
+                <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="combined-rating-notes">
+                    <!-- Combined Rating & Notes content will be loaded via HTMX -->
+                    <div class="d-flex justify-content-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">{% trans "Loading..." %}</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="interview">
@@ -404,9 +405,6 @@
             </div>
             <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="document">
                 {% include "candidate/document.html" %}
-            </div>
-            <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="rating">
-                {% include "candidate/rating_tab.html" %}
             </div>
             <div class="oh-general__tab-target oh-profile__info-tab mb-4 d-none" id="maillog">
             </div>

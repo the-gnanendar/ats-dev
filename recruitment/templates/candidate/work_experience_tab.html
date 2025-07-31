@@ -3,100 +3,158 @@
 
 <div class="oh-card">
     <div class="oh-card__header">
-        <h4 class="oh-card__title">{% trans "Work Experience" %}</h4>
-        <div class="oh-card__actions">
-            <a href="{% url 'candidate-work-experience-update' candidate.id %}" class="oh-btn oh-btn--secondary">
-                <ion-icon name="create-outline"></ion-icon>
-                {% trans "Edit Experience" %}
-            </a>
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="oh-label mb-0">{% trans "Work Experience" %}</h6>
+            <div class="d-flex gap-2">
+                <a href="{% url 'candidate-work-experience-update' candidate.id %}" class="oh-btn oh-btn--secondary oh-btn--sm">
+                    <ion-icon name="create-outline"></ion-icon>
+                    {% trans "Edit Experience" %}
+                </a>
+                <a href="{% url 'candidate-work-experience-update' candidate.id %}" class="oh-btn oh-btn--primary oh-btn--sm">
+                    <ion-icon name="add-outline"></ion-icon>
+                    {% trans "Add Experience" %}
+                </a>
+            </div>
         </div>
     </div>
     
     <div class="oh-card__body">
         {% if candidate.work_experiences.all %}
             {% for experience in candidate.work_experiences.all %}
-            <div class="work-experience-item mb-4 p-3 border rounded">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                        <h5 class="mb-1">{{ experience.job_title }}</h5>
-                        <h6 class="text-muted mb-1">{{ experience.company_name }}</h6>
-                        <p class="text-muted small mb-0">
-                            {{ experience.start_date|date:"M Y" }} - 
+            <div class="experience-card mb-4">
+                <div class="experience-header mb-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="experience-title-section">
+                            <h5 class="experience-title mb-1">{{ experience.job_title }}</h5>
+                            <h6 class="experience-company mb-1">{{ experience.company_name }}</h6>
+                            <p class="experience-duration text-muted mb-0">
+                                {{ experience.start_date|date:"M Y" }} - 
+                                {% if experience.is_current %}
+                                    {% trans "Present" %}
+                                {% else %}
+                                    {{ experience.end_date|date:"M Y" }}
+                                {% endif %}
+                                • {{ experience.get_employment_type_display }}
+                            </p>
+                        </div>
+                        <div class="experience-badges">
                             {% if experience.is_current %}
-                                {% trans "Present" %}
-                            {% else %}
-                                {{ experience.end_date|date:"M Y" }}
+                                <span class="oh-badge oh-badge--success">{% trans "Current" %}</span>
                             {% endif %}
-                            • {{ experience.get_employment_type_display }}
-                        </p>
+                        </div>
                     </div>
-                    {% if experience.is_current %}
-                        <span class="oh-badge oh-badge--success">{% trans "Current" %}</span>
-                    {% endif %}
                 </div>
                 
-                {% if experience.company_location %}
-                <p class="mb-2">
-                    <ion-icon name="location-outline"></ion-icon>
-                    {{ experience.company_location }}
-                </p>
-                {% endif %}
-                
-                {% if experience.department %}
-                <p class="mb-2">
-                    <ion-icon name="business-outline"></ion-icon>
-                    {{ experience.department }}
-                </p>
-                {% endif %}
-                
-                {% if experience.job_description %}
-                <div class="mb-3">
-                    <h6>{% trans "Job Description" %}</h6>
-                    <p>{{ experience.job_description|linebreaks }}</p>
-                </div>
-                {% endif %}
-                
-                {% if experience.achievements %}
-                <div class="mb-3">
-                    <h6>{% trans "Key Achievements" %}</h6>
-                    <p>{{ experience.achievements|linebreaks }}</p>
-                </div>
-                {% endif %}
-                
-                {% if experience.projects.all %}
-                <div class="mb-3">
-                    <h6>{% trans "Projects" %}</h6>
+                <div class="experience-content">
                     <div class="row">
-                        {% for project in experience.projects.all %}
-                        <div class="col-md-6 mb-2">
-                            <div class="card">
-                                <div class="card-body">
-                                    <h6 class="card-title">{{ project.project_name }}</h6>
-                                    <p class="card-text small">{{ project.project_description|truncatewords:20 }}</p>
-                                    {% if project.technologies_used %}
-                                    <p class="card-text small text-muted">
-                                        <strong>{% trans "Technologies" %}:</strong> {{ project.technologies_used }}
-                                    </p>
-                                    {% endif %}
-                                    {% if project.project_url %}
-                                    <a href="{{ project.project_url }}" target="_blank" class="card-link small">
-                                        {% trans "View Project" %}
-                                    </a>
-                                    {% endif %}
-                                </div>
+                        <div class="col-md-8">
+                            {% if experience.company_location %}
+                            <div class="experience-detail mb-3">
+                                <h6 class="oh-label mb-1">
+                                    <ion-icon name="location-outline"></ion-icon>
+                                    {% trans "Location" %}
+                                </h6>
+                                <p class="mb-0">{{ experience.company_location }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if experience.department %}
+                            <div class="experience-detail mb-3">
+                                <h6 class="oh-label mb-1">
+                                    <ion-icon name="business-outline"></ion-icon>
+                                    {% trans "Department" %}
+                                </h6>
+                                <p class="mb-0">{{ experience.department }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if experience.job_description %}
+                            <div class="experience-detail mb-3">
+                                <h6 class="oh-label mb-1">{% trans "Job Description" %}</h6>
+                                <p class="mb-0">{{ experience.job_description|linebreaks }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if experience.achievements %}
+                            <div class="experience-detail mb-3">
+                                <h6 class="oh-label mb-1">{% trans "Key Achievements" %}</h6>
+                                <p class="mb-0">{{ experience.achievements|linebreaks }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if experience.salary %}
+                            <div class="experience-detail mb-3">
+                                <h6 class="oh-label mb-1">
+                                    <ion-icon name="cash-outline"></ion-icon>
+                                    {% trans "Salary" %}
+                                </h6>
+                                <p class="mb-0">{{ experience.currency }} {{ experience.salary|floatformat:0 }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="projects-section">
+                                <h6 class="oh-label mb-3">{% trans "Projects" %}</h6>
+                                {% if experience.projects.all %}
+                                    {% for project in experience.projects.all %}
+                                    <div class="project-card mb-3">
+                                        <div class="project-header mb-2">
+                                            <h6 class="project-title mb-1">{{ project.project_name }}</h6>
+                                            {% if project.role %}
+                                            <p class="project-role text-muted small mb-1">
+                                                <strong>{% trans "Role" %}:</strong> {{ project.role }}
+                                            </p>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="project-content">
+                                            <p class="project-description small mb-2">{{ project.project_description|linebreaks }}</p>
+                                            
+                                            {% if project.technologies_used %}
+                                            <div class="project-tech mb-2">
+                                                <strong class="small">{% trans "Technologies" %}:</strong>
+                                                <p class="text-muted small mb-0">{{ project.technologies_used }}</p>
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if project.start_date and project.end_date %}
+                                            <div class="project-duration mb-2">
+                                                <strong class="small">{% trans "Duration" %}:</strong>
+                                                <p class="text-muted small mb-0">
+                                                    {{ project.start_date|date:"M Y" }} - 
+                                                    {% if project.is_current %}
+                                                        {% trans "Present" %}
+                                                    {% else %}
+                                                        {{ project.end_date|date:"M Y" }}
+                                                    {% endif %}
+                                                </p>
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if project.project_url %}
+                                            <div class="project-actions">
+                                                <a href="{{ project.project_url }}" target="_blank" class="oh-btn oh-btn--secondary oh-btn--sm">
+                                                    <ion-icon name="open-outline"></ion-icon>
+                                                    {% trans "View Project" %}
+                                                </a>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="no-projects-message">
+                                        <div class="text-center py-3">
+                                            <ion-icon name="folder-outline" class="no-projects-icon"></ion-icon>
+                                            <p class="text-muted mb-0">{% trans "No projects to display" %}</p>
+                                        </div>
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
                 </div>
-                {% endif %}
-                
-                {% if experience.salary %}
-                <p class="text-muted small">
-                    <ion-icon name="cash-outline"></ion-icon>
-                    {{ experience.currency }} {{ experience.salary|floatformat:0 }}
-                </p>
-                {% endif %}
             </div>
             {% endfor %}
         {% else %}
@@ -120,13 +178,103 @@
 </div>
 
 <style>
-.work-experience-item {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
+.experience-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s ease;
 }
 
-.work-experience-item:hover {
-    background-color: #e9ecef;
+.experience-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.experience-title {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+.experience-company {
+    color: #495057;
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+
+.experience-duration {
+    font-size: 0.9rem;
+}
+
+.experience-detail {
+    padding: 12px 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.experience-detail:last-child {
+    border-bottom: none;
+}
+
+.experience-detail h6 {
+    color: #6c757d;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.experience-detail p {
+    color: #495057;
+    line-height: 1.5;
+}
+
+.project-card {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 16px;
+    transition: all 0.15s ease-in-out;
+}
+
+.project-card:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.project-title {
+    color: #495057;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.project-role {
+    color: #6c757d;
+}
+
+.project-description {
+    color: #495057;
+    line-height: 1.4;
+}
+
+.project-tech, .project-duration {
+    margin-bottom: 8px;
+}
+
+.project-actions {
+    margin-top: 12px;
+}
+
+.no-projects-message {
+    background: #f8f9fa;
+    border: 1px dashed #dee2e6;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.no-projects-icon {
+    font-size: 24px;
+    color: #adb5bd;
+    margin-bottom: 8px;
 }
 
 .oh-empty-state {
@@ -148,5 +296,25 @@
 .oh-empty-state__text {
     color: #666;
     margin-bottom: 24px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .experience-card {
+        padding: 16px;
+    }
+    
+    .project-card {
+        margin-bottom: 1rem;
+    }
+    
+    .experience-header .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .experience-badges {
+        margin-top: 8px;
+    }
 }
 </style> 

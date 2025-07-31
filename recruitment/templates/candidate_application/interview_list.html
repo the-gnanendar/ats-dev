@@ -13,7 +13,7 @@
 </div>
 {% endif %}
 
-{% if data %}
+{% if interviews %}
     <div class="oh-card p-4">
         <div class="oh-card__body">
             <!-- start of column toggle button-->
@@ -42,10 +42,12 @@
                                     class="oh-sticky-table__th">{% trans "Interviewer" %}</div>
                                 <div data-cell-index="2" data-cell-title='{% trans "Interview Date" %}'
                                     class="oh-sticky-table__th {% if request.sort_option.order == '-interview_date' %}arrow-up {% elif request.sort_option.order == 'interview_date' %}arrow-down {% else %}arrow-up-down {% endif %}"
-                                    hx-get="{% url 'interview-filter-view' %}?{{pd}}&sortby=interview_date"
+                                    hx-get="{% url 'interview-view-application' %}?{{pd}}&sortby=interview_date"
                                     hx-target="#section">{% trans "Interview Date" %}</div>
                                 <div data-cell-index="3" data-cell-title='{% trans "Interview Time" %}'
                                     class="oh-sticky-table__th">{% trans "Interview Time" %}</div>
+                                <div data-cell-index="4" data-cell-title='{% trans "Interview End Time" %}'
+                                    class="oh-sticky-table__th">{% trans "End Time" %}</div>
                                 <div data-cell-index="4" data-cell-title='{% trans "Description" %}'
                                     class="oh-sticky-table__th">{% trans "Description" %}</div>
                                 <div data-cell-index="5" data-cell-title='{% trans "Status" %}' class="oh-sticky-table__th">
@@ -55,7 +57,7 @@
                             </div>
                         </div>
                         <div class="oh-sticky-table__tbody">
-                            {% for interview in data %}
+                            {% for interview in interviews %}
                                 <div
                                     class="oh-sticky-table__tr oh-permission-table__tr oh-permission-table--collapsed {% if request.user.employee_get in interview.employee_id.all %}diff-cell {% endif %}">
                                     <div class="oh-sticky-table__sd oh-permission-table--toggle " data-toggle-count>
@@ -68,7 +70,7 @@
                                                         class="oh-permission-table__collapse-up"
                                                         name="chevron-up-outline"></ion-icon></span>
                                             </button>
-                                            <span class="oh-permission-table__user">{{interview.candidate_id}} </span>
+                                            <span class="oh-permission-table__user">{{interview.candidate_application_id}} </span>
                                         </div>
                                     </div>
                                     <div data-cell-index="1" class="oh-sticky-table__td">
@@ -83,14 +85,6 @@
                                                         <span class="oh-profile__name oh-text--dark"
                                                             title="{{employee.get_full_name}}">{{employee.get_full_name|truncatechars:15}}</span>
                                                     </div>
-                                                    {% if perms.recruitment.change_interviewschedule or request.user.employee_get in interview.employee_id.all %}
-                                                        <a hx-confirm="{% trans 'Are you sure you want to remove this interviewer?' %}"
-                                                            hx-post="{% url 'interview-employee-remove' interview.id employee.id %}"
-                                                            title="{% trans " Remove" %}" hx-swap="outerHTML"
-                                                            onclick="event.stopPropagation()">
-                                                            <ion-icon name="close-outline"></ion-icon>
-                                                        </a>
-                                                    {% endif %}
                                                 </span>
                                             </div>
                                         {% endfor %}
@@ -101,22 +95,25 @@
                                         {{interview.interview_date}}
                                     </div>
                                     <div data-cell-index="3" class="oh-sticky-table__td timeformat_changer">
-                                        {{interview.interview_time}}
+                                        {{interview.interview_start_time}}
                                     </div>
-                                    <div data-cell-index="4" class="oh-sticky-table__td">
+                                    <div data-cell-index="4" class="oh-sticky-table__td timeformat_changer">
+                                        {{interview.interview_end_time}}
+                                    </div>
+                                    <div data-cell-index="5" class="oh-sticky-table__td">
                                         {% if interview.description %}
                                             {{interview.description}}
                                         {% else %}
                                             {% trans "None" %}
                                         {% endif %}
                                     </div>
-                                    <div data-cell-index="5" class="oh-sticky-table__td">
+                                    <div data-cell-index="6" class="oh-sticky-table__td">
                                         {% if interview.completed %}
                                             <div class="d-flex" style="color:green;">
                                                 <i id="fabIcon" style="font-size:18px;" class="material-icons ms-3 mt-2">check_circle</i>
                                                 <span class="oh-activity-sidebar__q mt-2">{% trans "Interview Completed" %}</span>
                                             </div>
-                                        {% elif interview.interview_date|date:"Y-m-d" < now|date:"Y-m-d" %}
+                                        {% elif interview.is_interview_expired %}
                                             <div class="d-flex" style="color:red;">
                                                 <i id="fabIcon" style="font-size:18px" class="material-icons ms-3 mt-2">dangerous</i>
                                                 <span class="oh-activity-sidebar__q mt-2">{% trans "Expired Interview" %}</span>
@@ -135,17 +132,16 @@
                                     </div>
                                     <div class="oh-sticky-table__td oh-sticky-table__right">
                                         <div class="oh-btn-group" onclick="event.stopPropagation()">
-
-                                            {% if perms.recruitment.change_interviewschedule or request.user.employee_get in interview.employee_id.all %}
+                                            {% if perms.recruitment.change_interviewscheduleapplication or request.user.employee_get in interview.employee_id.all %}
                                                 <a title="{% trans " Edit" %}"
-                                                    hx-get="{% url 'edit-interview' interview.id %}?view=true"
+                                                    hx-get="{% url 'interview-edit-application' interview.id %}?view=true"
                                                     data-target="#createModal" hx-swap="innerHTML" hx-target="#createTarget"
                                                     data-toggle="oh-modal-toggle" class="oh-btn oh-btn--light-bkg w-100"><ion-icon
                                                         name="create-outline"></ion-icon></a>
                                             {% endif %}
 
-                                            {% if perms.recruitment.delete_interviewschedule %}
-                                                <form hx-post="{% url 'delete-interview' interview.id %}?view=true"
+                                            {% if perms.recruitment.delete_interviewscheduleapplication %}
+                                                <form hx-post="{% url 'interview-delete-application' interview.id %}?view=true"
                                                     hx-confirm="{% trans " Are you sure you want to delete this interview?" %}"
                                                     style="display: contents;width:100%">
                                                     {% csrf_token %}
@@ -170,36 +166,36 @@
     </div>
     <div class="oh-pagination">
         <span class="oh-pagination__page">
-            {% trans "Page" %} {{ data.number }} {% trans "of" %} {{ data.paginator.num_pages }}.
+            {% trans "Page" %} {{ interviews.number }} {% trans "of" %} {{ interviews.paginator.num_pages }}.
         </span>
         <nav class="oh-pagination__nav">
             <div class="oh-pagination__input-container me-3">
                 <span class="oh-pagination__label me-1">{% trans "Page" %}</span>
-                <input type="number" name="page" class="oh-pagination__input" value="{{data.number}}"
-                    hx-get="{% url 'interview-filter-view' %}?{{pd}}" hx-target="#section" min="1" />
-                <span class="oh-pagination__label">{% trans "of" %} {{data.paginator.num_pages}}</span>
+                <input type="number" name="page" class="oh-pagination__input" value="{{interviews.number}}"
+                    hx-get="{% url 'interview-view-application' %}?{{pd}}" hx-target="#section" min="1" />
+                <span class="oh-pagination__label">{% trans "of" %} {{interviews.paginator.num_pages}}</span>
             </div>
             <ul class="oh-pagination__items">
-                {% if data.has_previous %}
+                {% if interviews.has_previous %}
                 <li class="oh-pagination__item oh-pagination__item--wide">
-                    <a hx-target='#section' hx-get="{% url 'interview-filter-view' %}?{{pd}}&page=1"
+                    <a hx-target='#section' hx-get="{% url 'interview-view-application' %}?{{pd}}&page=1"
                         class="oh-pagination__link" onclick="tickCheckboxes();">{% trans "First" %}</a>
                 </li>
                 <li class="oh-pagination__item oh-pagination__item--wide">
                     <a hx-target='#section'
-                        hx-get="{% url 'interview-filter-view' %}?{{pd}}&page={{ data.previous_page_number }}"
+                        hx-get="{% url 'interview-view-application' %}?{{pd}}&page={{ interviews.previous_page_number }}"
                         class="oh-pagination__link" onclick="tickCheckboxes();">{% trans "Previous" %}</a>
                 </li>
                 {% endif %}
-                {% if data.has_next %}
+                {% if interviews.has_next %}
                 <li class="oh-pagination__item oh-pagination__item--wide">
                     <a hx-target='#section'
-                        hx-get="{% url 'interview-filter-view' %}?{{pd}}&page={{ data.next_page_number }}"
+                        hx-get="{% url 'interview-view-application' %}?{{pd}}&page={{ interviews.next_page_number }}"
                         class="oh-pagination__link" onclick="tickCheckboxes();">{% trans "Next" %}</a>
                 </li>
                 <li class="oh-pagination__item oh-pagination__item--wide">
                     <a hx-target='#section'
-                        hx-get="{% url 'interview-filter-view' %}?{{pd}}&page={{ data.paginator.num_pages }}"
+                        hx-get="{% url 'interview-view-application' %}?{{pd}}&page={{ interviews.paginator.num_pages }}"
                         class="oh-pagination__link" onclick="tickCheckboxes();">{% trans "Last" %}</a>
                 </li>
                 {% endif %}
@@ -207,19 +203,11 @@
         </nav>
     </div>
 {% else %}
-    <div class="oh-empty">
-        <img src="{% static 'images/ui/search.svg' %}" class="oh-404__image" alt="Page not found. 404." />
-        <h1 class="oh-empty__title">{% trans "No Records found." %}</h1>
-        <p class="oh-empty__subtitle">{% trans "No Interviews Found." %} </p>
+    <div class="oh-wrapper">
+        <div class="oh-404">
+            <img style="border-style: none;" src="{% static 'images/ui/interview.svg' %}" class="oh-404__image mb-4" alt="Page not found. 404." />
+            <h3 class="oh-404__subtitle">{% trans "There are no interviews scheduled at this moment..." %}</h3>
+            <p class="oh-404__text">{% trans "We couldn't find any interviews in the system." %}</p>
+        </div>
     </div>
-{% endif %}
-<script>
-    // toggle columns //
-    toggleColumns("interview-table", "interviewCells");
-    localStorageinterviewCells = localStorage.getItem(
-        "interview_table"
-    );
-    if (!localStorageinterviewCells) {
-        $("#interviewCells").find("[type=checkbox]").prop("checked", true);
-    }
-</script>
+{% endif %} 

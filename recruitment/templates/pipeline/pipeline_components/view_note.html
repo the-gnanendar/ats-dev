@@ -81,94 +81,120 @@
 				{% endif %}
 
 				<div class="pe-4">
-					<p class="mb-3">{{ note.description }}</p>
+					<p class="mb-3">
+						{% if note.description %}
+							{{ note.description }}
+						{% elif note.notes %}
+							<strong>Skill Rating Note:</strong> {{ note.notes }}
+							<br><small class="text-muted">Skill: {{ note.skill_name }} ({{ note.rating }}/5.0)</small>
+						{% endif %}
+					</p>
 
 					{% if perms.recruitment.change_candidate or request.user|is_stagemanager %}
-						<div class="position-absolute bottom-0 end-0 p-4">
-							<form
-								class="form-check form-switch m-0 oh-switch"
-								hx-post="{% url 'candidate-can-view-note' note.id %}"
-								hx-swap = "outerHTML swap:.2s"
-								hx-select="ol li:nth-child({{forloop.counter}})"
-								hx-target="closest li"
-							>
-								<input
-									type="checkbox"
-									class="form-check-input oh-switch__checkbox"
-									role="switch"
-									name="enable_block_account"
-									onchange="$(this).closest('form').find('input[type=submit]').click()"
-									{% if note.candidate_can_view %}
-										title="Candidate can view this note" checked
-									{% else %}
-										title="Candidate can't view this note"
-									{% endif %}
-								/>
-								<input type="submit" hidden/>
-							</form>
-						</div>
+						{% if note.candidate_can_view is not None %}
+							<div class="position-absolute bottom-0 end-0 p-4">
+								<form
+									class="form-check form-switch m-0 oh-switch"
+									hx-post="{% url 'candidate-can-view-note' note.id %}"
+									hx-swap = "outerHTML swap:.2s"
+									hx-select="ol li:nth-child({{forloop.counter}})"
+									hx-target="closest li"
+								>
+									<input
+										type="checkbox"
+										class="form-check-input oh-switch__checkbox"
+										role="switch"
+										name="enable_block_account"
+										onchange="$(this).closest('form').find('input[type=submit]').click()"
+										{% if note.candidate_can_view %}
+											title="Candidate can view this note" checked
+										{% else %}
+											title="Candidate can't view this note"
+										{% endif %}
+									/>
+									<input type="submit" hidden/>
+								</form>
+							</div>
+						{% endif %}
 					{% endif %}
 				</div>
 
-				<div class="d-flex mt-2 mb-2">
-					{% for file in note.stage_files.all %}
-						<a href="{{ file.files.url }}" rel="noopener noreferrer" target="_blank" id="candidateNoteFile{{file.id}}" class="fade-me-out">
-							<span class="oh-file-icon oh-file-icon--pdf"
-								onmouseover="enlargeImage('{{ file.files.url }}',$(this))"
-								style="width: 40px; height: 40px"
+				{% if note.stage_files %}
+					<div class="d-flex mt-2 mb-2">
+						{% for file in note.stage_files.all %}
+							<a href="{{ file.files.url }}" rel="noopener noreferrer" target="_blank" id="candidateNoteFile{{file.id}}" class="fade-me-out">
+								<span class="oh-file-icon oh-file-icon--pdf"
+									onmouseover="enlargeImage('{{ file.files.url }}',$(this))"
+									style="width: 40px; height: 40px"
+								>
+									<img src="{% static 'images/ui/minus-icon.png' %}"
+										style="display: block; width: 50%; height: 50%"
+										hx-get="{% url 'delete-stage-note-file' file.id %}"
+										hx-target="#candidateNoteFile{{file.id}}"
+										hx-swap="outerHTML"
+										hx-on:click="$('#enlargeImageContainer').empty();setTimeout(() => {reloadMessage(this);},100);"
+										onclick="event.stopPropagation();event.preventDefault()"
+									/>
+								</span>
+							</a>
+						{% endfor %}
+
+						<form
+							hx-post="{% url 'add-more-files' note.id %}"
+							class="add-files-form"
+							hx-encoding="multipart/form-data"
+							data-target="#activitySidebar" hx-swap="innerHTML" hx-target="#activitySidebar,#note"
+
 							>
-								<img src="{% static 'images/ui/minus-icon.png' %}"
-									style="display: block; width: 50%; height: 50%"
-									hx-get="{% url 'delete-stage-note-file' file.id %}"
-									hx-target="#candidateNoteFile{{file.id}}"
-									hx-swap="outerHTML"
-									hx-on:click="$('#enlargeImageContainer').empty();setTimeout(() => {reloadMessage(this);},100);"
-									onclick="event.stopPropagation();event.preventDefault()"
-								/>
-							</span>
-						</a>
-					{% endfor %}
-
-					<form
-						hx-post="{% url 'add-more-files' note.id %}"
-						class="add-files-form"
-						hx-encoding="multipart/form-data"
-						data-target="#activitySidebar" hx-swap="innerHTML" hx-target="#activitySidebar,#note"
-
-						>
-						{% csrf_token %}
-						<label for="addFile_{{note.id}}" title="Add Files"
-							><ion-icon
-								name="add-outline"
-								style="font-size: 24px"
-								role="img"
-								class="md hydrated"
-								aria-label="add outline"
-							></ion-icon
-						></label>
-						<input
-							type="file"
-							name="files"
-							class="d-none"
-							multiple="true"
-							id="addFile_{{note.id}}"
-							onchange="submitForm(this)"
-						/>
-						<input
-							type="submit"
-							class="d-none add_more_submit"
-							value="save"
-						/>
-					</form>
-				</div>
+							{% csrf_token %}
+							<label for="addFile_{{note.id}}" title="Add Files"
+								><ion-icon
+									name="add-outline"
+									style="font-size: 24px"
+									role="img"
+									class="md hydrated"
+									aria-label="add outline"
+								></ion-icon
+							></label>
+							<input
+								type="file"
+								name="files"
+								class="d-none"
+								multiple="true"
+								id="addFile_{{note.id}}"
+								onchange="submitForm(this)"
+							/>
+							<input
+								type="submit"
+								class="d-none add_more_submit"
+								value="save"
+							/>
+						</form>
+					</div>
+				{% endif %}
+				
 				<span class="oh-activity-sidebar__a">
 					{% trans 'by' %}
-					<img
-						src="{{ note.note_by.get_avatar }}"
-						style="width: 1.5em; border-radius: 100%"
-					/>
-					{{ note.updated_user }} @ {{note.stage_id }}
-					{% trans "stage" %}
+					{% if note.note_by %}
+						<img
+							src="{{ note.note_by.get_avatar }}"
+							style="width: 1.5em; border-radius: 100%"
+						/>
+						{{ note.updated_user }} @ {{note.stage_id }}
+						{% trans "stage" %}
+					{% elif note.employee %}
+						<img
+							src="{{ note.employee.get_avatar }}"
+							style="width: 1.5em; border-radius: 100%"
+						/>
+						{{ note.employee.get_full_name }} @ 
+						{% if note.stage %}
+							{{ note.stage.stage }}
+						{% else %}
+							{% trans "Unknown Stage" %}
+						{% endif %}
+						{% trans "stage" %}
+					{% endif %}
 				</span>
 				<div style="width: 50%">
 					<div id="enlargeImageContainer" class="enlargeImageContainer"></div>

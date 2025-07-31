@@ -44,7 +44,8 @@ from recruitment.forms import (
     StageDropDownForm,
     StageNoteForm,
     CandidateWorkExperienceFormSet, CandidateWorkProjectFormSet,
-    CandidateEducationFormSet, CandidateCertificationFormSet, CandidateSkillFormSet
+    CandidateEducationFormSet, CandidateCertificationFormSet, CandidateSkillFormSet,
+    CandidateWorkExperienceWithProjectsFormSet
 )
 from recruitment.methods import recruitment_manages
 from recruitment.models import Candidate, Recruitment, Stage, StageNote, CandidateApplication, CandidateWorkExperience, CandidateWorkProject
@@ -751,16 +752,16 @@ def candidate_remark_delete(request, note_id):
 
 
 @login_required
-@permission_required(perm="recruitment.change_candidate")
+@permission_required(perm="recruitment.change_candidateapplication")
 def candidate_schedule_date_update(request):
     """
-    This is a an ajax method to update schedule date for a candidate
+    This is a an ajax method to update schedule date for a candidate application
     """
     candidate_id = request.POST["candidateId"]
     schedule_date = request.POST["date"]
-    candidate_obj = Candidate.objects.get(id=candidate_id)
-    candidate_obj.schedule_date = schedule_date
-    candidate_obj.save()
+    candidate_app_obj = CandidateApplication.objects.get(id=candidate_id)
+    candidate_app_obj.schedule_date = schedule_date
+    candidate_app_obj.save()
     return JsonResponse({"message": "congratulations"})
 
 
@@ -955,26 +956,182 @@ def stage_delete(request, stage_id):
 @permission_required(perm="recruitment.add_candidate")
 def candidate(request):
     """
-    This method used to create candidate profile
+    This method used to create candidate profile with tabbed form
     """
     form = CandidateCreationForm()
+    work_experience_formset = CandidateWorkExperienceFormSet(prefix='work_experience')
+    education_formset = CandidateEducationFormSet(prefix='education')
+    certifications_formset = CandidateCertificationFormSet(prefix='certifications')
+    skills_formset = CandidateSkillFormSet(prefix='skills')
+    
+    # Debug information
+    print("DEBUG: Formsets created successfully")
+    print(f"DEBUG: work_experience_formset: {work_experience_formset}")
+    print(f"DEBUG: education_formset: {education_formset}")
+    print(f"DEBUG: certifications_formset: {certifications_formset}")
+    print(f"DEBUG: skills_formset: {skills_formset}")
+    
     path = "/recruitment/candidate-view"
+    
     if request.method == "POST":
-        form = CandidateCreationForm(request.POST, request.FILES)
-        if form.is_valid():
-            candidate_obj = form.save(commit=False)
-            # when creating new candidate from onboarding view
-            if request.GET.get("onboarding") == "True":
-                path = "/onboarding/candidates-view"
-            candidate_obj.save()
-            messages.success(request, _("Candidate profile added."))
-            return redirect(path)
+        form_type = request.POST.get('form_type')
+        
+        if form_type == 'basic_info':
+            form = CandidateCreationForm(request.POST, request.FILES)
+            if form.is_valid():
+                candidate_obj = form.save(commit=False)
+                if request.GET.get("onboarding") == "True":
+                    path = "/onboarding/candidates-view"
+                candidate_obj.save()
+                messages.success(request, _("Basic information saved successfully."))
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Basic information saved successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                return redirect(path)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': form.errors
+                    })
+        
+        elif form_type == 'work_experience':
+            work_experience_formset = CandidateWorkExperienceFormSet(request.POST, prefix='work_experience')
+            if work_experience_formset.is_valid():
+                # Get or create candidate
+                candidate_id = request.POST.get('candidate_id')
+                if candidate_id:
+                    candidate_obj = Candidate.objects.get(id=candidate_id)
+                else:
+                    # Create a new candidate if none exists
+                    candidate_obj = Candidate.objects.create(name="New Candidate")
+                
+                work_experience_formset.instance = candidate_obj
+                work_experience_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Work experience saved successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Work experience saved successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': work_experience_formset.errors
+                    })
+        
+        elif form_type == 'education':
+            education_formset = CandidateEducationFormSet(request.POST, prefix='education')
+            if education_formset.is_valid():
+                # Get or create candidate
+                candidate_id = request.POST.get('candidate_id')
+                if candidate_id:
+                    candidate_obj = Candidate.objects.get(id=candidate_id)
+                else:
+                    # Create a new candidate if none exists
+                    candidate_obj = Candidate.objects.create(name="New Candidate")
+                
+                education_formset.instance = candidate_obj
+                education_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Education saved successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Education saved successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': education_formset.errors
+                    })
+        
+        elif form_type == 'certifications':
+            certifications_formset = CandidateCertificationFormSet(request.POST, prefix='certifications')
+            if certifications_formset.is_valid():
+                # Get or create candidate
+                candidate_id = request.POST.get('candidate_id')
+                if candidate_id:
+                    candidate_obj = Candidate.objects.get(id=candidate_id)
+                else:
+                    # Create a new candidate if none exists
+                    candidate_obj = Candidate.objects.create(name="New Candidate")
+                
+                certifications_formset.instance = candidate_obj
+                certifications_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Certifications saved successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Certifications saved successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': certifications_formset.errors
+                    })
+        
+        elif form_type == 'skills':
+            skills_formset = CandidateSkillFormSet(request.POST, prefix='skills')
+            if skills_formset.is_valid():
+                # Get or create candidate
+                candidate_id = request.POST.get('candidate_id')
+                if candidate_id:
+                    candidate_obj = Candidate.objects.get(id=candidate_id)
+                else:
+                    # Create a new candidate if none exists
+                    candidate_obj = Candidate.objects.create(name="New Candidate")
+                
+                skills_formset.instance = candidate_obj
+                skills_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Skills saved successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Skills saved successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': skills_formset.errors
+                    })
 
-    return render(
-        request,
-        "candidate/candidate_create_form.html",
-        {"form": form},
-    )
+    context = {
+        'form': form,
+        'work_experience_formset': work_experience_formset,
+        'education_formset': education_formset,
+        'certifications_formset': certifications_formset,
+        'skills_formset': skills_formset,
+        'candidate': None
+    }
+
+    print("DEBUG: About to render template with context")
+    print(f"DEBUG: Context keys: {context.keys()}")
+    
+    return render(request, "candidate/candidate_tabbed_form.html", context)
 
 
 @login_required
@@ -1107,40 +1264,138 @@ def candidate_view_individual(request, cand_id):
 @manager_can_enter(perm="recruitment.change_candidate")
 def candidate_update(request, cand_id):
     """
-    Used to update or change the candidate
+    Used to update or change the candidate with tabbed form
     Args:
         id : candidate_id
     """
     candidate_obj = Candidate.objects.get(id=cand_id)
     form = CandidateCreationForm(instance=candidate_obj)
+    work_experience_formset = CandidateWorkExperienceFormSet(instance=candidate_obj, prefix='work_experience')
+    education_formset = CandidateEducationFormSet(instance=candidate_obj, prefix='education')
+    certifications_formset = CandidateCertificationFormSet(instance=candidate_obj, prefix='certifications')
+    skills_formset = CandidateSkillFormSet(instance=candidate_obj, prefix='skills')
+    
     path = "/recruitment/candidate-view"
+    
     if request.method == "POST":
-        form = CandidateCreationForm(
-            request.POST, request.FILES, instance=candidate_obj
-        )
-        if form.is_valid():
-            candidate_obj = form.save()
-            if candidate_obj.stage_id is None:
-                            candidate_obj.stage_id = Stage.objects.filter(
-                recruitment_id=candidate_obj.recruitment_id, stage_type="sourced"
-            ).first()
-            if candidate_obj.stage_id is not None:
-                if (
-                    candidate_obj.stage_id.recruitment_id
-                    != candidate_obj.recruitment_id
-                ):
-                    candidate_obj.stage_id = (
-                        candidate_obj.recruitment_id.stage_set.filter(
-                            stage_type="sourced"
-                        ).first()
-                    )
-            if request.GET.get("onboarding") == "True":
-                candidate_obj.hired = True
-                path = "/onboarding/candidates-view"
-            candidate_obj.save()
-            messages.success(request, _("Candidate Updated Successfully."))
-            return redirect(path)
-    return render(request, "candidate/candidate_create_form.html", {"form": form})
+        form_type = request.POST.get('form_type')
+        
+        if form_type == 'basic_info':
+            form = CandidateCreationForm(request.POST, request.FILES, instance=candidate_obj)
+            if form.is_valid():
+                candidate_obj = form.save()
+                if request.GET.get("onboarding") == "True":
+                    path = "/onboarding/candidates-view"
+                messages.success(request, _("Basic information updated successfully."))
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Basic information updated successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                return redirect(path)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': form.errors
+                    })
+        
+        elif form_type == 'work_experience':
+            work_experience_formset = CandidateWorkExperienceFormSet(request.POST, instance=candidate_obj, prefix='work_experience')
+            if work_experience_formset.is_valid():
+                work_experience_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Work experience updated successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Work experience updated successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': work_experience_formset.errors
+                    })
+        
+        elif form_type == 'education':
+            education_formset = CandidateEducationFormSet(request.POST, instance=candidate_obj, prefix='education')
+            if education_formset.is_valid():
+                education_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Education updated successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Education updated successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': education_formset.errors
+                    })
+        
+        elif form_type == 'certifications':
+            certifications_formset = CandidateCertificationFormSet(request.POST, instance=candidate_obj, prefix='certifications')
+            if certifications_formset.is_valid():
+                certifications_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Certifications updated successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Certifications updated successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': certifications_formset.errors
+                    })
+        
+        elif form_type == 'skills':
+            skills_formset = CandidateSkillFormSet(request.POST, instance=candidate_obj, prefix='skills')
+            if skills_formset.is_valid():
+                skills_formset.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': _("Skills updated successfully."),
+                        'candidate_id': candidate_obj.id
+                    })
+                messages.success(request, _("Skills updated successfully."))
+                return redirect('candidate-view-individual', candidate_id=candidate_obj.id)
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Please correct the errors below."),
+                        'errors': skills_formset.errors
+                    })
+
+    context = {
+        'form': form,
+        'work_experience_formset': work_experience_formset,
+        'education_formset': education_formset,
+        'certifications_formset': certifications_formset,
+        'skills_formset': skills_formset,
+        'candidate': candidate_obj
+    }
+
+    return render(request, "candidate/candidate_tabbed_form.html", context)
 
 
 @login_required
@@ -1446,24 +1701,56 @@ def candidate_applications_view(request, candidate_id):
 @manager_can_enter(perm="recruitment.change_candidate")
 def candidate_work_experience_update(request, candidate_id):
     """
-    Update candidate work experience with dynamic add/delete
+    Update candidate work experience with dynamic add/delete and projects
     """
     candidate = get_object_or_404(Candidate, id=candidate_id)
     
     if request.method == 'POST':
-        formset = CandidateWorkExperienceFormSet(request.POST, instance=candidate)
+        formset = CandidateWorkExperienceWithProjectsFormSet(request.POST, instance=candidate)
         if formset.is_valid():
-            formset.save()
-            messages.success(request, _("Work experience updated successfully."))
+            # Save work experiences
+            work_experiences = formset.save()
+            
+            # Handle projects for each work experience
+            for i, form in enumerate(formset.forms):
+                if form.is_valid() and not form.cleaned_data.get('DELETE', False):
+                    work_experience = form.instance
+                    if work_experience.pk:  # Only for saved work experiences
+                        # Clear existing projects for this work experience
+                        work_experience.projects.all().delete()
+                        
+                        # Get project data from POST
+                        project_count = 0
+                        while True:
+                            project_name = request.POST.get(f'project-{i}-project_name-{project_count}')
+                            if not project_name:
+                                break
+                            
+                            # Create new project
+                            project = CandidateWorkProject(
+                                work_experience=work_experience,
+                                project_name=project_name,
+                                project_description=request.POST.get(f'project-{i}-project_description-{project_count}', ''),
+                                technologies_used=request.POST.get(f'project-{i}-technologies_used-{project_count}', ''),
+                                project_url=request.POST.get(f'project-{i}-project_url-{project_count}', ''),
+                                role=request.POST.get(f'project-{i}-role-{project_count}', ''),
+                                start_date=request.POST.get(f'project-{i}-start_date-{project_count}') or None,
+                                end_date=request.POST.get(f'project-{i}-end_date-{project_count}') or None,
+                                is_current=request.POST.get(f'project-{i}-is_current-{project_count}') == 'on'
+                            )
+                            project.save()
+                            project_count += 1
+            
+            messages.success(request, _("Work experience and projects updated successfully."))
             return redirect('candidate-view-individual', candidate_id)
     else:
-        formset = CandidateWorkExperienceFormSet(instance=candidate)
+        formset = CandidateWorkExperienceWithProjectsFormSet(instance=candidate)
     
     context = {
         'candidate': candidate,
         'formset': formset,
         'form_title': _("Work Experience"),
-        'form_type': 'work_experience'
+        'form_type': 'work_experience_with_projects'
     }
     
     return render(request, 'candidate/dynamic_form.html', context)

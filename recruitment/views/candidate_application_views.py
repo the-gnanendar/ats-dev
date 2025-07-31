@@ -28,6 +28,7 @@ from django.views.decorators.http import require_http_methods
 
 from base.backends import ConfiguredEmailBackend
 from base.methods import get_pagination, sortby, export_data
+from recruitment.views.paginator_qry import paginator_qry
 from employee.models import Employee
 from horilla.decorators import hx_request_required, login_required, permission_required
 from notifications.signals import notify
@@ -339,25 +340,73 @@ def interview_schedule_application(request, app_id):
     This method is used to schedule interview for candidate application
     """
     candidate_app = get_object_or_404(CandidateApplication, id=app_id)
-    form = InterviewScheduleApplicationForm()
+    
+    # Create form with candidate application context
+    form = InterviewScheduleApplicationForm(candidate_app=candidate_app)
     
     if request.method == "POST":
-        form = InterviewScheduleApplicationForm(request.POST)
+        form = InterviewScheduleApplicationForm(candidate_app=candidate_app, data=request.POST)
         if form.is_valid():
-            interview = form.save(commit=False)
-            interview.candidate_application_id = candidate_app
-            interview.save()
-            form.save_m2m()  # Save the many-to-many employee relationships
+            # Debug: Print form data before saving
+            print("=== INTERVIEW SCHEDULING DEBUG ===")
+            print(f"Form data: {form.cleaned_data}")
+            print(f"Candidate Application: {candidate_app}")
+            print(f"Candidate Application ID: {candidate_app.id}")
+            print(f"Candidate Application Name: {candidate_app.name}")
+            print(f"Recruitment: {candidate_app.recruitment_id}")
+            print(f"Stage: {candidate_app.stage_id}")
             
-            # Automatically add stage interviewers if the candidate has a stage
-            if candidate_app.stage_id and candidate_app.stage_id.stage_interviewers.exists():
-                stage_interviewers = candidate_app.stage_id.stage_interviewers.all()
-                for interviewer in stage_interviewers:
-                    if interviewer not in interview.employee_id.all():
-                        interview.employee_id.add(interviewer)
-            
-            messages.success(request, _("Interview scheduled successfully."))
-            return redirect("candidate-application-view-individual", app_id=app_id)
+            try:
+                interview = form.save(commit=False)
+                interview.candidate_application_id = candidate_app  # This sets the ForeignKey correctly
+                interview.save()
+                form.save_m2m()  # Save the many-to-many employee relationships
+                
+                # Automatically add stage interviewers if the candidate has a stage
+                if candidate_app.stage_id and candidate_app.stage_id.stage_interviewers.exists():
+                    stage_interviewers = candidate_app.stage_id.stage_interviewers.all()
+                    for interviewer in stage_interviewers:
+                        if interviewer not in interview.employee_id.all():
+                            interview.employee_id.add(interviewer)
+                
+                # Debug: Print saved interview data
+                print(f"=== SAVED INTERVIEW DATA ===")
+                print(f"Interview ID: {interview.id}")
+                print(f"Candidate Application ID: {interview.candidate_application_id}")
+                print(f"Interview Date: {interview.interview_date}")
+                print(f"Interview Time: {interview.interview_start_time}")
+                print(f"Description: {interview.description}")
+                print(f"Completed: {interview.completed}")
+                print(f"Interviewers: {list(interview.employee_id.all())}")
+                print(f"Total interviews in DB: {InterviewScheduleApplication.objects.count()}")
+                print("=== END DEBUG ===")
+                
+                # Return success response for modal (following skill rating pattern)
+                messages.success(request, _("Interview scheduled successfully!"))
+                return HttpResponse(
+                    '<script>'
+                    'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                    'window.location.reload();'
+                    '</script>'
+                )
+            except Exception as e:
+                # Return error response for modal (following skill rating pattern)
+                messages.error(request, _("Error scheduling interview. Please try again."))
+                return HttpResponse(
+                    '<script>'
+                    'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                    'window.location.reload();'
+                    '</script>'
+                )
+        else:
+            # Return form errors for modal (following skill rating pattern)
+            messages.error(request, _("Please correct the errors below."))
+            return HttpResponse(
+                '<script>'
+                'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                'window.location.reload();'
+                '</script>'
+            )
     
     context = {
         "form": form,
@@ -376,20 +425,119 @@ def interview_view_application(request):
     """
     This method renders all interview schedules for candidate applications
     """
-    interviews = InterviewScheduleApplication.objects.all()
+    # Debug: Print all interviews in database
+    print("=== INTERVIEW VIEW DEBUG ===")
+    all_interviews = InterviewScheduleApplication.objects.all()
+    print(f"Total interviews in DB: {all_interviews.count()}")
+    for interview in all_interviews:
+        print(f"Interview ID: {interview.id}, Candidate: {interview.candidate_application_id.name}, Date: {interview.interview_date}, Time: {interview.interview_start_time}")
+        print(f"  - Company: {interview.candidate_application_id.recruitment_id.company_id}")
+        print(f"  - Recruitment: {interview.candidate_application_id.recruitment_id}")
+    print("=== END INTERVIEW VIEW DEBUG ===")
+    
+    interviews = InterviewScheduleApplication.objects.all().order_by("-interview_date")
     filter_obj = InterviewScheduleApplicationFilter(request.GET, queryset=interviews)
     
     interviews = sortby(request, filter_obj.qs, "orderby")
     
     # Pagination
     page_number = request.GET.get("page")
-    interviews = get_pagination(request, interviews)
+    interviews = paginator_qry(interviews, page_number)
     
     context = {
         "interviews": interviews,
         "filter_obj": filter_obj,
     }
     return render(request, "candidate_application/interview_view.html", context)
+
+
+@login_required
+@hx_request_required
+@manager_can_enter(perm="recruitment.change_interviewscheduleapplication")
+def interview_edit_application(request, interview_id):
+    """
+    This method is used to edit interview schedule for candidate application
+    """
+    interview = get_object_or_404(InterviewScheduleApplication, id=interview_id)
+    candidate_app = interview.candidate_application_id
+    
+    # Create form with candidate application context
+    form = InterviewScheduleApplicationForm(candidate_app=candidate_app, instance=interview)
+    
+    if request.method == "POST":
+        form = InterviewScheduleApplicationForm(candidate_app=candidate_app, data=request.POST, instance=interview)
+        if form.is_valid():
+            try:
+                interview = form.save()
+                
+                # Return success response for modal (following skill rating pattern)
+                messages.success(request, _("Interview updated successfully!"))
+                return HttpResponse(
+                    '<script>'
+                    'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                    'window.location.reload();'
+                    '</script>'
+                )
+            except Exception as e:
+                # Return error response for modal (following skill rating pattern)
+                messages.error(request, _("Error updating interview. Please try again."))
+                return HttpResponse(
+                    '<script>'
+                    'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                    'window.location.reload();'
+                    '</script>'
+                )
+        else:
+            # Return form errors for modal (following skill rating pattern)
+            messages.error(request, _("Please correct the errors below."))
+            return HttpResponse(
+                '<script>'
+                'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                'window.location.reload();'
+                '</script>'
+            )
+    
+    context = {
+        "form": form,
+        "candidate_app": candidate_app,
+        "interview": interview,
+    }
+    return render(
+        request, 
+        "candidate_application/interview_schedule_form.html", 
+        context
+    )
+
+
+@login_required
+@hx_request_required
+@manager_can_enter(perm="recruitment.delete_interviewscheduleapplication")
+def interview_delete_application(request, interview_id):
+    """
+    This method is used to delete interview schedule for candidate application
+    """
+    interview = get_object_or_404(InterviewScheduleApplication, id=interview_id)
+    
+    if request.method == "POST":
+        try:
+            interview.delete()
+            messages.success(request, _("Interview deleted successfully!"))
+            return HttpResponse(
+                '<script>'
+                'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                'window.location.reload();'
+                '</script>'
+            )
+        except Exception as e:
+            messages.error(request, _("Error deleting interview. Please try again."))
+            return HttpResponse(
+                '<script>'
+                'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                'window.location.reload();'
+                '</script>'
+            )
+    
+    return HttpResponseRedirect(request.META.get("HTTP_REFERER", "/"))
 
 
 @transaction.atomic

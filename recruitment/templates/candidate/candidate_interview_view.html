@@ -58,9 +58,9 @@
 <div class="mt-4 d-flex">
   <span class="oh-activity-sidebar__title fw-bold">{{candidate}}'s {% trans "Scheduled Interviews" %}</span>
 </div>
-{% if perms.recruitment.add_interviewschedule or request.user|stage_manages:candidate.recruitment_id %}
+{% if perms.recruitment.add_interviewscheduleapplication or request.user|stage_manages:candidate.recruitment_id %}
     <div class="d-flex" style="flex-direction: row-reverse;">
-        <button type="button" hx-get='{% url "interview-schedule" candidate.id %}' title="{% trans "Schedule Interview" %}"
+        <button type="button" hx-get='{% url "interview-schedule-application" candidate.id %}' title="{% trans "Schedule Interview" %}"
             hx-target="#createTarget"
             hx-swap="innerHTML"
             data-target="#createModal"
@@ -77,16 +77,16 @@
         <ol class="oh-activity-sidebar__qa-list" role="list">
             {% for interview in candidate.candidate_interview.all %}
                 <li class="oh-activity-sidebar__qa-item">
-                    {% if perms.recruitment.delete_interviewschedule or request.user|stage_manages:candidate.recruitment_id %}
-                        <span class="float-end" title="{% trans "Delete" %}" hx-get="{% url 'delete-interview' interview.id %}?view=false"
+                    {% if perms.recruitment.delete_interviewscheduleapplication or request.user|stage_manages:candidate.recruitment_id %}
+                        <span class="float-end" title="{% trans "Delete" %}" hx-get="{% url 'interview-delete-application' interview.id %}?view=false"
                                 data-target="#activitySidebar"
                                 hx-swap="innerHTML" hx-target="#interview">
                             <ion-icon name="close-outline" style="font-size: 24px" role="img" class="md hydrated"
                                 aria-label="close outline"></ion-icon>
                         </span>
                     {% endif %}
-                    {% if perms.recruitment.change_interviewschedule or request.user|stage_manages:candidate.recruitment_id %}
-                        <span class="float-end" title="{% trans "Edit" %}" hx-get="{% url 'edit-interview' interview.id %}?view=false"
+                    {% if perms.recruitment.change_interviewscheduleapplication or request.user|stage_manages:candidate.recruitment_id %}
+                        <span class="float-end" title="{% trans "Edit" %}" hx-get="{% url 'interview-edit-application' interview.id %}?view=false"
                                 data-target="#createModal" hx-swap="innerHTML" hx-target="#createTarget"
                                 data-toggle="oh-modal-toggle">
                             <ion-icon name="create-outline" style="font-size: 19px" role="img" class="md hydrated"
@@ -97,7 +97,7 @@
                         <div class="interview-date">
                             {% trans "Date" %}: {{ interview.interview_date }}
                         </div>
-                        <div class="interview-time">{% trans "Time" %}: {{ interview.interview_time }}</div>
+                        <div class="interview-time">{% trans "Time" %}: {{ interview.interview_start_time }} - {{ interview.interview_end_time }}</div>
                         <div class="interview-interviewer">
                             {% trans "Interviewer" %}:
                             <div class="mt-1">

@@ -258,3 +258,11 @@ def count_applications_by_stage_type(applications, stage_type):
         if application.stage_id and application.stage_id.stage_type == stage_type:
             count += 1
     return count
+
+
+@register.filter(name="get_item")
+def get_item(dictionary, key):
+    """
+    Get item from dictionary by key
+    """
+    return dictionary.get(key)

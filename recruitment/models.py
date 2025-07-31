@@ -589,7 +589,7 @@ class Stage(HorillaModel):
         verbose_name_plural = _("Stages")
 
     def __str__(self):
-        return f"{self.stage} - ({self.recruitment_id.title})"
+        return f"{self.stage}"
 
     def active_candidates(self):
         """
@@ -779,7 +779,7 @@ class Candidate(HorillaModel):
         """
         This method returns interview information for this candidate across all their applications
         """
-        interviews = InterviewSchedule.objects.filter(candidate_id=self.id)
+        interviews = InterviewScheduleApplication.objects.filter(candidate_application_id__candidate_id=self.id)
         if interviews:
             interview_info = "<table>"
             interview_info += "<tr><th>Sl No.</th><th>Date</th><th>Time</th><th>Is Completed</th></tr>"
@@ -798,6 +798,32 @@ class Candidate(HorillaModel):
             return interview_info
         else:
             return ""
+
+    def get_average_skill_rating(self):
+        """
+        This method returns the average skill rating for this candidate across all their applications
+        """
+        from django.db.models import Avg
+        
+        # Get all candidate applications for this candidate
+        candidate_applications = CandidateApplication.objects.filter(email=self.email)
+        
+        # Get all skill ratings for these applications
+        skill_ratings = CandidateApplicationSkillRating.objects.filter(
+            candidate_application__in=candidate_applications
+        )
+        
+        # Calculate average rating
+        if skill_ratings.exists():
+            avg_rating = skill_ratings.aggregate(Avg('rating'))['rating__avg']
+            if avg_rating is not None:
+                return float(avg_rating)
+            else:
+                return 0.0
+        else:
+            return 0.0
+    
+
 
     def save(self, *args, **kwargs):
         # Ensure employee uniqueness for candidate conversion
@@ -1135,34 +1161,7 @@ class RecruitmentGeneralSetting(HorillaModel):
     company_id = models.ForeignKey(Company, on_delete=models.CASCADE, null=True)
 
 
-class InterviewSchedule(HorillaModel):
-    """
-    Interview Scheduling Model
-    """
 
-    candidate_id = models.ForeignKey(
-        Candidate,
-        verbose_name=_("Candidate"),
-        related_name="candidate_interview",
-        on_delete=models.CASCADE,
-    )
-    employee_id = models.ManyToManyField(Employee, verbose_name=_("Interviewer"))
-    interview_date = models.DateField(verbose_name=_("Interview Date"))
-    interview_time = models.TimeField(verbose_name=_("Interview Time"))
-    description = models.TextField(
-        verbose_name=_("Description"), blank=True, max_length=255
-    )
-    completed = models.BooleanField(
-        default=False, verbose_name=_("Is Interview Completed")
-    )
-    objects = models.Manager()
-
-    def __str__(self) -> str:
-        return f"{self.candidate_id} -Interview."
-
-    class Meta:
-        verbose_name = _("Schedule Interview")
-        verbose_name_plural = _("Schedule Interviews")
 
 
 class Resume(models.Model):
@@ -1542,6 +1541,27 @@ class CandidateApplication(HorillaModel):
             return interview_info
         else:
             return ""
+    
+    def get_average_skill_rating(self):
+        """
+        This method returns the average skill rating for this candidate application
+        """
+        from django.db.models import Avg
+        
+        # Get all skill ratings for this candidate application
+        skill_ratings = CandidateApplicationSkillRating.objects.filter(
+            candidate_application=self
+        )
+        
+        # Calculate average rating
+        if skill_ratings.exists():
+            avg_rating = skill_ratings.aggregate(Avg('rating'))['rating__avg']
+            if avg_rating is not None:
+                return float(avg_rating)
+            else:
+                return 0.0
+        else:
+            return 0.0
 
     def save(self, *args, **kwargs):
         if self.stage_id is not None:
@@ -1613,7 +1633,8 @@ class InterviewScheduleApplication(HorillaModel):
     )
     employee_id = models.ManyToManyField(Employee, verbose_name=_("Interviewer"))
     interview_date = models.DateField(verbose_name=_("Interview Date"))
-    interview_time = models.TimeField(verbose_name=_("Interview Time"))
+    interview_start_time = models.TimeField(verbose_name=_("Interview Start Time"))
+    interview_end_time = models.TimeField(verbose_name=_("Interview End Time"), editable=False)
     description = models.TextField(
         verbose_name=_("Description"), blank=True, max_length=255
     )
@@ -1625,9 +1646,46 @@ class InterviewScheduleApplication(HorillaModel):
     def __str__(self) -> str:
         return f"{self.candidate_application_id} - Interview."
 
+    def save(self, *args, **kwargs):
+        """
+        Automatically calculate interview end time as 45 minutes from start time
+        """
+        if self.interview_start_time and not self.interview_end_time:
+            from datetime import datetime, timedelta
+            # Create a datetime object for today with the start time
+            start_datetime = datetime.combine(datetime.today(), self.interview_start_time)
+            # Add 45 minutes
+            end_datetime = start_datetime + timedelta(minutes=45)
+            # Extract just the time part
+            self.interview_end_time = end_datetime.time()
+        super().save(*args, **kwargs)
+
+    def is_interview_expired(self):
+        """
+        Check if the interview time has passed
+        """
+        from django.utils import timezone
+        from datetime import datetime
+        
+        if not self.interview_date or not self.interview_end_time:
+            return False
+            
+        # Create datetime for interview end
+        interview_end_datetime = datetime.combine(self.interview_date, self.interview_end_time)
+        # Convert to timezone-aware datetime
+        interview_end_datetime = timezone.make_aware(interview_end_datetime)
+        
+        return timezone.now() > interview_end_datetime
+
     class Meta:
         verbose_name = _("Schedule Interview Application")
         verbose_name_plural = _("Schedule Interview Applications")
+        permissions = (
+            ("view_interview_schedule_application", "View Interview Schedule Application"),
+            ("add_interview_schedule_application", "Add Interview Schedule Application"),
+            ("change_interview_schedule_application", "Change Interview Schedule Application"),
+            ("delete_interview_schedule_application", "Delete Interview Schedule Application"),
+        )
 
 
 class StageNoteApplication(HorillaModel):
@@ -2117,36 +2175,34 @@ class CandidateSkill(HorillaModel):
         unique_together = ['candidate', 'skill_name']
 
 
-class CandidateSkillRating(HorillaModel):
+class CandidateApplicationSkillRating(HorillaModel):
     """
-    Model for candidate skill ratings
+    Model for candidate application skill ratings
     """
     
-    candidate = models.ForeignKey(
-        Candidate,
+    candidate_application = models.ForeignKey(
+        CandidateApplication,
         on_delete=models.CASCADE,
         related_name='skill_ratings',
-        verbose_name=_("Candidate")
-    )
-    
-    # Recruitment context
-    recruitment = models.ForeignKey(
-        Recruitment,
-        on_delete=models.CASCADE,
-        related_name='skill_ratings',
-        verbose_name=_("Recruitment"),
-        null=True,
-        blank=True
+        verbose_name=_("Candidate Application")
     )
     
     # Stage context
     stage = models.ForeignKey(
         Stage,
         on_delete=models.CASCADE,
-        related_name='skill_ratings',
+        related_name='application_skill_ratings',
         verbose_name=_("Stage"),
         null=True,
         blank=True
+    )
+    
+    # Employee (Interviewer) context
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='application_skill_ratings_given',
+        verbose_name=_("Interviewer/Employee")
     )
     
     # Skill Information
@@ -2184,14 +2240,6 @@ class CandidateSkillRating(HorillaModel):
         verbose_name=_("Notes")
     )
     
-    # Rated by
-    rated_by = models.ForeignKey(
-        Employee,
-        on_delete=models.CASCADE,
-        related_name='skill_ratings_given',
-        verbose_name=_("Rated By")
-    )
-    
     # Rating date
     rated_on = models.DateTimeField(
         auto_now_add=True,
@@ -2200,15 +2248,13 @@ class CandidateSkillRating(HorillaModel):
     
     def __str__(self):
         context = []
-        if self.recruitment:
-            context.append(f"Rec: {self.recruitment.title}")
         if self.stage:
             context.append(f"Stage: {self.stage.stage}")
         context_str = " | ".join(context) if context else "General"
-        return f"{self.candidate.name} - {self.skill_name}: {self.rating}/5.0 ({context_str})"
+        return f"{self.candidate_application.name} - {self.skill_name}: {self.rating}/5.0 ({context_str})"
     
     class Meta:
         ordering = ['-rated_on']
-        verbose_name = _("Skill Rating")
-        verbose_name_plural = _("Skill Ratings")
-        unique_together = ['candidate', 'skill_name', 'rated_by', 'recruitment', 'stage']
+        verbose_name = _("Application Skill Rating")
+        verbose_name_plural = _("Application Skill Ratings")
+        unique_together = ['candidate_application', 'skill_name', 'employee', 'stage']

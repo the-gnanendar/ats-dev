@@ -1,0 +1,408 @@
+{% load i18n static recruitmentfilters %}
+
+<style>
+    .combined-container {
+        display: flex;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    .skill-rating-section {
+        flex: 1;
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .notes-section {
+        flex: 1;
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .skill-category {
+        margin-bottom: 1.5rem;
+    }
+    .skill-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1rem;
+    }
+    .skill-table th,
+    .skill-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .skill-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+    .category-average {
+        background-color: #fff3cd;
+        font-weight: 600;
+    }
+    .stage-average {
+        text-align: right;
+        font-weight: 600;
+        color: #495057;
+        margin-top: 1rem;
+        padding: 0.5rem;
+        background-color: #e9ecef;
+        border-radius: 4px;
+    }
+    .overall-average {
+        text-align: right;
+        font-weight: 600;
+        color: #495057;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background-color: #d1ecf1;
+        border-radius: 4px;
+    }
+    .note-item {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+    .note-content {
+        margin-bottom: 0.5rem;
+    }
+    .note-meta {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    .note-author {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-right: 0.5rem;
+    }
+    .note-files {
+        border-top: 1px solid #e9ecef;
+        padding-top: 0.5rem;
+    }
+    .note-files a {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background: #f8f9fa;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #495057;
+        font-size: 0.875rem;
+    }
+    .note-files a:hover {
+        background: #e9ecef;
+        color: #212529;
+    }
+    .no-data {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #495057;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.5rem;
+    }
+    .recruitment-section {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        background: #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .recruitment-header {
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .recruitment-header h4 {
+        color: #007bff;
+        font-weight: 600;
+    }
+    .stage-section {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+    }
+    .stage-header h5 {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+    .overall-average-section {
+        text-align: center;
+        padding: 1rem;
+        background: #e3f2fd;
+        border-radius: 8px;
+        margin-top: 2rem;
+    }
+    .average-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        margin: 0.25rem;
+    }
+    .recruitment-badge {
+        background: #e3f2fd;
+        color: #1976d2;
+        border: 1px solid #1976d2;
+    }
+    .stage-badge {
+        background: #f3e5f5;
+        color: #7b1fa2;
+        border: 1px solid #7b1fa2;
+    }
+    .recruitment-average {
+        margin-top: 0.5rem;
+    }
+    .stage-average-display {
+        margin-top: 0.5rem;
+    }
+    .stage-date {
+        color: #6c757d;
+        font-style: italic;
+    }
+    @media (max-width: 768px) {
+        .combined-container {
+            flex-direction: column;
+        }
+    }
+</style>
+
+{% for recruitment_id, recruitment_data in recruitments_data.items %}
+<div class="recruitment-section mb-4">
+    <div class="recruitment-header">
+        <h4 class="mb-3">{{ recruitment_data.recruitment_name }}</h4>
+        {% if recruitment_averages|get_item:recruitment_data.recruitment_name %}
+        <div class="recruitment-average">
+            <span class="average-badge recruitment-badge">
+                {% trans "Recruitment Average:" %} {{ recruitment_averages|get_item:recruitment_data.recruitment_name|floatformat:1 }}/5.0
+            </span>
+        </div>
+        {% endif %}
+    </div>
+    
+    {% for stage_data in recruitment_data.stages %}
+    <div class="stage-section mb-4">
+        <div class="stage-header">
+            <h5 class="mb-2">{{ stage_data.stage_name }}</h5>
+            {% if stage_data.skill_ratings %}
+                {% regroup stage_data.skill_ratings by employee.get_full_name as rating_users %}
+                <small class="text-muted">
+                    {% trans "Rated by:" %} 
+                    {% for user_group in rating_users %}
+                        {% if user_group.grouper %}{{ user_group.grouper }}{% else %}Unknown User{% endif %}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                    {% if stage_data.skill_ratings.0.created_at %}
+                    <span class="stage-date">
+                        {% trans "on" %} {{ stage_data.skill_ratings.0.created_at|date:"M d, Y" }}
+                    </span>
+                    {% endif %}
+                </small>
+            {% endif %}
+            {% if stage_data.stage_average %}
+            <div class="stage-average-display">
+                <span class="average-badge stage-badge">
+                    {% trans "Stage Average:" %} {{ stage_data.stage_average|floatformat:1 }}/5.0
+                </span>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="combined-container">
+            <!-- Skill Ratings Section -->
+            <div class="skill-rating-section">
+                <div class="section-title">
+                    <h6 class="mb-0">{% trans "Skill Ratings" %}</h6>
+                </div>
+                
+                {% if stage_data.skill_ratings %}
+                    <!-- Non-Technical Skills -->
+                    {% if stage_data.non_technical_ratings %}
+                    <div class="skill-category">
+                        <h6 class="mb-2">{% trans "Non-Technical Skills" %}</h6>
+                        <table class="skill-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Skill" %}</th>
+                                    <th>{% trans "Rating" %}</th>
+                                    <th>{% trans "Rated By" %}</th>
+                                    <th>{% trans "Rated On" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rating in stage_data.non_technical_ratings %}
+                                <tr>
+                                    <td>{{ rating.skill_name }}</td>
+                                    <td>{{ rating.rating }}</td>
+                                    <td>{% if rating.employee %}{{ rating.employee.get_full_name }}{% else %}Unknown User{% endif %}</td>
+                                    <td>{{ rating.created_at|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% if stage_data.non_technical_avg %}
+                                <tr class="category-average">
+                                    <td><strong>{% trans "Category Average" %}</strong></td>
+                                    <td><strong>{{ stage_data.non_technical_avg }}</strong></td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    <!-- Technical Skills -->
+                    {% if stage_data.technical_ratings %}
+                    <div class="skill-category">
+                        <h6 class="mb-2">{% trans "Technical Skills" %}</h6>
+                        <table class="skill-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Skill" %}</th>
+                                    <th>{% trans "Rating" %}</th>
+                                    <th>{% trans "Rated By" %}</th>
+                                    <th>{% trans "Rated On" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rating in stage_data.technical_ratings %}
+                                <tr>
+                                    <td>{{ rating.skill_name }}</td>
+                                    <td>{{ rating.rating }}</td>
+                                    <td>{% if rating.employee %}{{ rating.employee.get_full_name }}{% else %}Unknown User{% endif %}</td>
+                                    <td>{{ rating.created_at|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% if stage_data.technical_avg %}
+                                <tr class="category-average">
+                                    <td><strong>{% trans "Category Average" %}</strong></td>
+                                    <td><strong>{{ stage_data.technical_avg }}</strong></td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    {% if stage_data.stage_average %}
+                    <div class="stage-average">
+                        {% trans "Stage Average" %}: {{ stage_data.stage_average }}
+                    </div>
+                    {% endif %}
+
+                {% else %}
+                    <div class="no-data">
+                        <h6>{% trans "No skill ratings available for this stage" %}</h6>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Notes Section -->
+            <div class="notes-section">
+                <div class="section-title">
+                    <h6 class="mb-0">{% trans "Stage Notes" %}</h6>
+                </div>
+
+                <div id="notesContainer">
+                    {% if stage_data.notes %}
+                        {% for note in stage_data.notes %}
+                        <div class="note-item" id="candidateNoteItem{% if note.source == 'skill_rating' %}skill_{{ forloop.counter }}{% else %}{{note.id}}{% endif %}">
+                            <div class="note-content">
+                                <p class="mb-2">
+                                    {{ note.description }}
+                                    {% if note.source == 'skill_rating' %}
+                                        <span class="badge bg-info ms-2">{% trans "Skill Rating" %}</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+
+                            <!-- File attachments if any -->
+                            {% if note.stage_files.all %}
+                            <div class="note-files mb-2">
+                                <small class="text-muted">{% trans "Attachments:" %}</small>
+                                <div class="mt-1">
+                                    {% for file in note.stage_files.all %}
+                                    <a href="{{ file.files.url }}" target="_blank" class="me-2">
+                                        <ion-icon name="document-outline"></ion-icon>
+                                        {{ file.files.name|slice:"7:" }}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="note-meta">
+                                <span class="note-author">
+                                    {% if note.source == 'skill_rating' %}
+                                    <img
+                                        src="{% if note.created_by.user.avatar %}{{ note.created_by.user.avatar.url }}{% else %}{% static 'images/ui/user.jpg' %}{% endif %}"
+                                        style="width: 1.2em; border-radius: 100%"
+                                        onerror="this.src='{% static 'images/ui/user.jpg' %}'"
+                                    />
+                                    <strong>{% if note.created_by %}{{ note.created_by.get_full_name }}{% else %}Unknown User{% endif %}</strong>
+                                    {% else %}
+                                        <img
+                                            src="{% if note.note_by %}{{ note.note_by.get_avatar }}{% elif note.updated_by %}{{ note.updated_by.get_avatar }}{% else %}{% static 'images/ui/user.jpg' %}{% endif %}"
+                                            style="width: 1.2em; border-radius: 100%"
+                                        />
+                                        <strong>{% if note.updated_user %}{{ note.updated_user }}{% elif note.note_by %}{{ note.note_by }}{% else %}Unknown{% endif %}</strong>
+                                    {% endif %}
+                                </span>
+                                {% if note.source != 'skill_rating' %}@ {{note.stage_id }} {% trans "stage" %}{% endif %}
+                                <small class="text-muted">• {% if note.created_at %}{{ note.created_at|date:"M d, Y H:i" }}{% else %}{{ note.id }}{% endif %}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-data">
+                            <span class="oh-timeoff-title fw-bold">{% trans "No notes have been added for this stage" %}</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+
+{% if overall_average %}
+<div class="overall-average-section">
+    <div class="overall-average">
+        <strong>{% trans "Overall Average" %}: {{ overall_average|floatformat:1 }}/5.0</strong>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function toggleCommentButton(input) {
+        const button = document.getElementById('commentButton');
+        if (input.value.trim() !== '') {
+            button.style.display = 'block';
+        } else {
+            button.style.display = 'none';
+        }
+    }
+
+    function reloadMessage(element) {
+        // Reload messages if needed
+        if (typeof reloadMessages === 'function') {
+            reloadMessages();
+        }
+    }
+</script> 

@@ -1,0 +1,1027 @@
+{% extends 'index.html' %} 
+{% block content %} 
+{% load static %} 
+{% load i18n %} 
+{% load widget_tweaks %}
+
+<!-- DEBUG: Template is loading -->
+<div style="background: red; color: white; padding: 10px; margin: 10px;">
+  DEBUG: Template is loading successfully!
+  <br>
+  Form: {{ form }}
+  <br>
+  Work Experience Formset: {{ work_experience_formset }}
+  <br>
+  Education Formset: {{ education_formset }}
+  <br>
+  Certifications Formset: {{ certifications_formset }}
+  <br>
+  Skills Formset: {{ skills_formset }}
+</div>
+
+<div class="oh-wrapper mt-5">
+  <div class="oh-card">
+    <div class="oh-card__header">
+      <h4 class="oh-card__title">
+        {% if candidate %}
+          {% trans "Update Candidate" %}
+        {% else %}
+          {% trans "Create New Candidate" %}
+        {% endif %}
+      </h4>
+      <div class="oh-card__actions">
+        <a href="{% url 'candidate-view' %}" class="oh-btn oh-btn--secondary">
+          <ion-icon name="arrow-back-outline"></ion-icon>
+          {% trans "Back to Candidates" %}
+        </a>
+      </div>
+    </div>
+
+    <div class="oh-card__body">
+      <!-- Tab Navigation -->
+      <div class="oh-tabs">
+        <ul class="oh-tabs__tablist">
+          <li class="oh-tabs__tab oh-tabs__tab--active" data-target="#basic-info">
+            <ion-icon name="person-outline"></ion-icon>
+            {% trans "Basic Info" %}
+          </li>
+          <li class="oh-tabs__tab" data-target="#work-experience">
+            <ion-icon name="briefcase-outline"></ion-icon>
+            {% trans "Work Experience" %}
+          </li>
+          <li class="oh-tabs__tab" data-target="#education">
+            <ion-icon name="school-outline"></ion-icon>
+            {% trans "Education" %}
+          </li>
+          <li class="oh-tabs__tab" data-target="#certifications">
+            <ion-icon name="ribbon-outline"></ion-icon>
+            {% trans "Certifications" %}
+          </li>
+          <li class="oh-tabs__tab" data-target="#skills">
+            <ion-icon name="construct-outline"></ion-icon>
+            {% trans "Skills" %}
+          </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="oh-tabs__content">
+          <!-- Basic Info Tab -->
+          <div class="oh-tabs__content--active" id="basic-info">
+            <form method="post" enctype="multipart/form-data" id="basic-info-form">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="basic_info">
+              
+              <div class="row">
+                <div class="col-12 col-sm-12 col-md-12 col-lg-6 d-flex align-items-center">
+                  <div class="oh-profile-section__edit-photo me-4 mb-3" data-toggle="oh-modal-toggle" data-target="#uploadPhotoModal">
+                    <img src="{{form.instance.get_avatar}}" class="oh-profile-section__modal-image preview" alt="Profile" />
+                  </div>
+                </div>
+              </div>
+              <input type="file" hidden name="profile" id="hidden_profile" />
+              {{form.profile.errors}}
+
+              <div class="row">
+                <div class="col-12">
+                  <h6 class="oh-label mb-3">{% trans "Basic Information" %}</h6>
+                </div>
+              </div>
+              {{ form.as_p }}
+
+              <div class="mt-4">
+                <button type="submit" class="oh-btn oh-btn--primary">
+                  <ion-icon name="save-outline"></ion-icon>
+                  {% trans "Save Basic Info" %}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Work Experience Tab -->
+          <div class="oh-tabs__content" id="work-experience">
+            <form method="post" id="work-experience-form">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="work_experience">
+              {{ work_experience_formset.management_form }}
+              
+              <div class="row">
+                <div class="col-12">
+                  <h6 class="oh-label mb-3">{% trans "Work Experience" %}</h6>
+                </div>
+              </div>
+
+              <div id="work-experience-container">
+                {% if work_experience_formset %}
+                  {% for form in work_experience_formset %}
+                    <div class="work-experience-form mb-4 p-3 border rounded">
+                      {% if not forloop.first %}
+                      <div class="d-flex justify-content-end mb-2">
+                        <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-work-experience">
+                          <ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}
+                        </button>
+                      </div>
+                      {% endif %}
+                      
+                      <div class="row">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.company_name.id_for_label }}">
+                              {% trans "Company Name" %}
+                            </label>
+                            {{ form.company_name|add_class:'form-control' }}
+                            {{ form.company_name.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.job_title.id_for_label }}">
+                              {% trans "Job Title" %}
+                            </label>
+                            {{ form.job_title|add_class:'form-control' }}
+                            {{ form.job_title.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.start_date.id_for_label }}">
+                              {% trans "Start Date" %}
+                            </label>
+                            {{ form.start_date|add_class:'form-control' }}
+                            {{ form.start_date.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.end_date.id_for_label }}">
+                              {% trans "End Date" %}
+                            </label>
+                            {{ form.end_date|add_class:'form-control' }}
+                            {{ form.end_date.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-12">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.job_description.id_for_label }}">
+                              {% trans "Job Description" %}
+                            </label>
+                            {{ form.job_description|add_class:'form-control' }}
+                            {{ form.job_description.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.employment_type.id_for_label }}">
+                              {% trans "Employment Type" %}
+                            </label>
+                            {{ form.employment_type|add_class:'form-control' }}
+                            {{ form.employment_type.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.is_current.id_for_label }}">
+                              {% trans "Is Current Position" %}
+                            </label>
+                            <div class="oh-switch" style="width: 30px;">
+                              {{ form.is_current|add_class:'oh-switch__checkbox' }}
+                            </div>
+                            {{ form.is_current.errors }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+                <button type="button" class="oh-btn oh-btn--light-info" id="add-work-experience">
+                  <ion-icon name="add-outline"></ion-icon> {% trans "Add Work Experience" %}
+                </button>
+              </div>
+
+              <div class="mt-4">
+                <button type="submit" class="oh-btn oh-btn--primary">
+                  <ion-icon name="save-outline"></ion-icon>
+                  {% trans "Save Work Experience" %}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Education Tab -->
+          <div class="oh-tabs__content" id="education">
+            <form method="post" id="education-form">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="education">
+              {{ education_formset.management_form }}
+              
+              <div class="row">
+                <div class="col-12">
+                  <h6 class="oh-label mb-3">{% trans "Education" %}</h6>
+                </div>
+              </div>
+
+              <div id="education-container">
+                {% if education_formset %}
+                  {% for form in education_formset %}
+                    <div class="education-form mb-4 p-3 border rounded">
+                      {% if not forloop.first %}
+                      <div class="d-flex justify-content-end mb-2">
+                        <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-education">
+                          <ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}
+                        </button>
+                      </div>
+                      {% endif %}
+                      
+                      <div class="row">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.institution_name.id_for_label }}">
+                              {% trans "Institution Name" %}
+                            </label>
+                            {{ form.institution_name|add_class:'form-control' }}
+                            {{ form.institution_name.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.degree_name.id_for_label }}">
+                              {% trans "Degree Name" %}
+                            </label>
+                            {{ form.degree_name|add_class:'form-control' }}
+                            {{ form.degree_name.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.field_of_study.id_for_label }}">
+                              {% trans "Field of Study" %}
+                            </label>
+                            {{ form.field_of_study|add_class:'form-control' }}
+                            {{ form.field_of_study.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.graduation_date.id_for_label }}">
+                              {% trans "Graduation Date" %}
+                            </label>
+                            {{ form.graduation_date|add_class:'form-control' }}
+                            {{ form.graduation_date.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.gpa.id_for_label }}">
+                              {% trans "GPA" %}
+                            </label>
+                            {{ form.gpa|add_class:'form-control' }}
+                            {{ form.gpa.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.is_current.id_for_label }}">
+                              {% trans "Is Current" %}
+                            </label>
+                            <div class="oh-switch" style="width: 30px;">
+                              {{ form.is_current|add_class:'oh-switch__checkbox' }}
+                            </div>
+                            {{ form.is_current.errors }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+                <button type="button" class="oh-btn oh-btn--light-info" id="add-education">
+                  <ion-icon name="add-outline"></ion-icon> {% trans "Add Education" %}
+                </button>
+              </div>
+
+              <div class="mt-4">
+                <button type="submit" class="oh-btn oh-btn--primary">
+                  <ion-icon name="save-outline"></ion-icon>
+                  {% trans "Save Education" %}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Certifications Tab -->
+          <div class="oh-tabs__content" id="certifications">
+            <form method="post" id="certifications-form">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="certifications">
+              {{ certifications_formset.management_form }}
+              
+              <div class="row">
+                <div class="col-12">
+                  <h6 class="oh-label mb-3">{% trans "Certifications" %}</h6>
+                </div>
+              </div>
+
+              <div id="certifications-container">
+                {% if certifications_formset %}
+                  {% for form in certifications_formset %}
+                    <div class="certifications-form mb-4 p-3 border rounded">
+                      {% if not forloop.first %}
+                      <div class="d-flex justify-content-end mb-2">
+                        <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-certification">
+                          <ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}
+                        </button>
+                      </div>
+                      {% endif %}
+                      
+                      <div class="row">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.certification_name.id_for_label }}">
+                              {% trans "Certification Name" %}
+                            </label>
+                            {{ form.certification_name|add_class:'form-control' }}
+                            {{ form.certification_name.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.issuing_organization.id_for_label }}">
+                              {% trans "Issuing Organization" %}
+                            </label>
+                            {{ form.issuing_organization|add_class:'form-control' }}
+                            {{ form.issuing_organization.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.issue_date.id_for_label }}">
+                              {% trans "Issue Date" %}
+                            </label>
+                            {{ form.issue_date|add_class:'form-control' }}
+                            {{ form.issue_date.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.expiry_date.id_for_label }}">
+                              {% trans "Expiry Date" %}
+                            </label>
+                            {{ form.expiry_date|add_class:'form-control' }}
+                            {{ form.expiry_date.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.credential_id.id_for_label }}">
+                              {% trans "Credential ID" %}
+                            </label>
+                            {{ form.credential_id|add_class:'form-control' }}
+                            {{ form.credential_id.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.is_current.id_for_label }}">
+                              {% trans "Is Current" %}
+                            </label>
+                            <div class="oh-switch" style="width: 30px;">
+                              {{ form.is_current|add_class:'oh-switch__checkbox' }}
+                            </div>
+                            {{ form.is_current.errors }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+                <button type="button" class="oh-btn oh-btn--light-info" id="add-certifications">
+                  <ion-icon name="add-outline"></ion-icon> {% trans "Add Certification" %}
+                </button>
+              </div>
+
+              <div class="mt-4">
+                <button type="submit" class="oh-btn oh-btn--primary">
+                  <ion-icon name="save-outline"></ion-icon>
+                  {% trans "Save Certifications" %}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Skills Tab -->
+          <div class="oh-tabs__content" id="skills">
+            <form method="post" id="skills-form">
+              {% csrf_token %}
+              <input type="hidden" name="form_type" value="skills">
+              {{ skills_formset.management_form }}
+              
+              <div class="row">
+                <div class="col-12">
+                  <h6 class="oh-label mb-3">{% trans "Skills" %}</h6>
+                </div>
+              </div>
+
+              <div id="skills-container">
+                {% if skills_formset %}
+                  {% for form in skills_formset %}
+                    <div class="skills-form mb-4 p-3 border rounded">
+                      {% if not forloop.first %}
+                      <div class="d-flex justify-content-end mb-2">
+                        <button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-skill">
+                          <ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}
+                        </button>
+                      </div>
+                      {% endif %}
+                      
+                      <div class="row">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.skill_name.id_for_label }}">
+                              {% trans "Skill Name" %}
+                            </label>
+                            {{ form.skill_name|add_class:'form-control' }}
+                            {{ form.skill_name.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.proficiency_level.id_for_label }}">
+                              {% trans "Proficiency Level" %}
+                            </label>
+                            {{ form.proficiency_level|add_class:'form-control' }}
+                            {{ form.proficiency_level.errors }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row mt-2">
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.years_of_experience.id_for_label }}">
+                              {% trans "Years of Experience" %}
+                            </label>
+                            {{ form.years_of_experience|add_class:'form-control' }}
+                            {{ form.years_of_experience.errors }}
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="oh-input__group">
+                            <label class="oh-label" for="{{ form.relevant_years_of_experience.id_for_label }}">
+                              {% trans "Relevant Years of Experience" %}
+                            </label>
+                            {{ form.relevant_years_of_experience|add_class:'form-control' }}
+                            {{ form.relevant_years_of_experience.errors }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+                <button type="button" class="oh-btn oh-btn--light-info" id="add-skills">
+                  <ion-icon name="add-outline"></ion-icon> {% trans "Add Skill" %}
+                </button>
+              </div>
+
+              <div class="mt-4">
+                <button type="submit" class="oh-btn oh-btn--primary">
+                  <ion-icon name="save-outline"></ion-icon>
+                  {% trans "Save Skills" %}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Photo Upload Modal -->
+<div class="oh-modal" id="uploadPhotoModal" role="dialog" aria-labelledby="uploadPhotoModal" aria-hidden="true">
+  <div class="oh-modal__dialog">
+    <div class="oh-modal__dialog-header">
+      <span class="oh-modal__dialog-title" id="uploadPhotoModalLabel">{% trans "Upload Photo" %}</span>
+      <a href="#" class="oh-modal__close" aria-label="Close">
+        <ion-icon name="close-outline"></ion-icon>
+      </a>
+    </div>
+    <div class="oh-modal__dialog-body">
+      <div class="oh-profile-section__image-container">
+        {% csrf_token %}
+        <div class="oh-profile-section__modal-avatar">
+          <img src="{{form.instance.get_avatar}}" class="oh-profile-section__modal-image preview" alt="Profile" />
+        </div>
+        <input type="file" accept="image/*" class="oh-input oh-input--file oh-input--file-sm mt-4" placeholder="Profile" id="choose_profile" />
+        {% if form.instance.id %}
+        <div class="d-flex justify-content-center">
+          <a class="oh-btn oh-btn--light-danger mr-1" href="{% url 'delete-profile-image' form.instance.id %}">
+            <ion-icon class="me-1" name="trash-outline"></ion-icon>{% trans "Delete Image" %}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+$(document).ready(function() {
+  // Tab functionality using the same system as pipeline
+  $('.oh-tabs__tab').click(function(e) {
+    e.preventDefault();
+    
+    // Remove active class from all tabs and content
+    $('.oh-tabs__tab').removeClass('oh-tabs__tab--active');
+    $('.oh-tabs__content').removeClass('oh-tabs__content--active');
+    
+    // Add active class to clicked tab
+    $(this).addClass('oh-tabs__tab--active');
+    
+    // Show corresponding content
+    var target = $(this).data('target');
+    $(target).addClass('oh-tabs__content--active');
+  });
+
+  // Form submission handling
+  $('form').on('submit', function(e) {
+    e.preventDefault();
+    
+    var form = $(this);
+    var formData = new FormData(this);
+    
+    $.ajax({
+      url: window.location.href,
+      type: 'POST',
+      data: formData,
+      processData: false,
+      contentType: false,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      success: function(response) {
+        if (response.success) {
+          // Show success message
+          var alert = $('<div class="oh-alert oh-alert--animated success">' + response.message + '</div>');
+          $('.oh-card__body').prepend(alert);
+          
+          setTimeout(function() {
+            alert.remove();
+          }, 3000);
+          
+          // If this is a new candidate creation, redirect to the candidate view
+          if (response.redirect_url) {
+            window.location.href = response.redirect_url;
+          }
+        } else {
+          // Show error message
+          var alert = $('<div class="oh-alert oh-alert--animated error">' + (response.message || 'An error occurred') + '</div>');
+          $('.oh-card__body').prepend(alert);
+          
+          setTimeout(function() {
+            alert.remove();
+          }, 3000);
+        }
+      },
+      error: function(xhr, status, error) {
+        console.error('Error:', error);
+        var alert = $('<div class="oh-alert oh-alert--animated error">An error occurred while saving.</div>');
+        $('.oh-card__body').prepend(alert);
+        
+        setTimeout(function() {
+          alert.remove();
+        }, 3000);
+      }
+    });
+  });
+
+  // Dynamic form addition functionality
+  // Work Experience
+  $('#add-work-experience').click(function() {
+    var container = $('#work-experience-container');
+    var formCount = container.find('.work-experience-form').length;
+    
+    var newForm = $('<div class="work-experience-form mb-4 p-3 border rounded">' +
+      '<div class="d-flex justify-content-end mb-2">' +
+        '<button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-work-experience">' +
+          '<ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}' +
+        '</button>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Company Name" %}</label>' +
+            '<input type="text" class="form-control" name="work_experience-' + formCount + '-company_name">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Job Title" %}</label>' +
+            '<input type="text" class="form-control" name="work_experience-' + formCount + '-job_title">' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Start Date" %}</label>' +
+            '<input type="date" class="form-control" name="work_experience-' + formCount + '-start_date">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "End Date" %}</label>' +
+            '<input type="date" class="form-control" name="work_experience-' + formCount + '-end_date">' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-12">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Job Description" %}</label>' +
+            '<textarea class="form-control" rows="3" name="work_experience-' + formCount + '-job_description"></textarea>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Employment Type" %}</label>' +
+            '<select class="form-control" name="work_experience-' + formCount + '-employment_type">' +
+              '<option value="">{% trans "Select employment type" %}</option>' +
+              '<option value="full-time">{% trans "Full-time" %}</option>' +
+              '<option value="part-time">{% trans "Part-time" %}</option>' +
+              '<option value="contract">{% trans "Contract" %}</option>' +
+              '<option value="internship">{% trans "Internship" %}</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Is Current Position" %}</label>' +
+            '<div class="oh-switch" style="width: 30px;">' +
+              '<input type="checkbox" class="oh-switch__checkbox" name="work_experience-' + formCount + '-is_current">' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>');
+    
+    container.append(newForm);
+    
+    // Update management form
+    var managementForm = $('#work-experience-form input[name="work_experience-TOTAL_FORMS"]');
+    if (managementForm.length) {
+      managementForm.val(formCount + 1);
+    }
+  });
+
+  // Education
+  $('#add-education').click(function() {
+    var container = $('#education-container');
+    var formCount = container.find('.education-form').length;
+    
+    var newForm = $('<div class="education-form mb-4 p-3 border rounded">' +
+      '<div class="d-flex justify-content-end mb-2">' +
+        '<button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-education">' +
+          '<ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}' +
+        '</button>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Institution Name" %}</label>' +
+            '<input type="text" class="form-control" name="education-' + formCount + '-institution_name">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Degree Name" %}</label>' +
+            '<input type="text" class="form-control" name="education-' + formCount + '-degree_name">' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Field of Study" %}</label>' +
+            '<input type="text" class="form-control" name="education-' + formCount + '-field_of_study">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Graduation Date" %}</label>' +
+            '<input type="date" class="form-control" name="education-' + formCount + '-graduation_date">' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "GPA" %}</label>' +
+            '<input type="number" class="form-control" step="0.01" min="0" name="education-' + formCount + '-gpa">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Is Current" %}</label>' +
+            '<div class="oh-switch" style="width: 30px;">' +
+              '<input type="checkbox" class="oh-switch__checkbox" name="education-' + formCount + '-is_current">' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>');
+    
+    container.append(newForm);
+    
+    // Update management form
+    var managementForm = $('#education-form input[name="education-TOTAL_FORMS"]');
+    if (managementForm.length) {
+      managementForm.val(formCount + 1);
+    }
+  });
+
+  // Certifications
+  $('#add-certifications').click(function() {
+    var container = $('#certifications-container');
+    var formCount = container.find('.certifications-form').length;
+    
+    var newForm = $('<div class="certifications-form mb-4 p-3 border rounded">' +
+      '<div class="d-flex justify-content-end mb-2">' +
+        '<button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-certification">' +
+          '<ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}' +
+        '</button>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Certification Name" %}</label>' +
+            '<input type="text" class="form-control" name="certifications-' + formCount + '-certification_name">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Issuing Organization" %}</label>' +
+            '<input type="text" class="form-control" name="certifications-' + formCount + '-issuing_organization">' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Issue Date" %}</label>' +
+            '<input type="date" class="form-control" name="certifications-' + formCount + '-issue_date">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Expiry Date" %}</label>' +
+            '<input type="date" class="form-control" name="certifications-' + formCount + '-expiry_date">' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Credential ID" %}</label>' +
+            '<input type="text" class="form-control" name="certifications-' + formCount + '-credential_id">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Is Current" %}</label>' +
+            '<div class="oh-switch" style="width: 30px;">' +
+              '<input type="checkbox" class="oh-switch__checkbox" name="certifications-' + formCount + '-is_current">' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>');
+    
+    container.append(newForm);
+    
+    // Update management form
+    var managementForm = $('#certifications-form input[name="certifications-TOTAL_FORMS"]');
+    if (managementForm.length) {
+      managementForm.val(formCount + 1);
+    }
+  });
+
+  // Skills
+  $('#add-skills').click(function() {
+    var container = $('#skills-container');
+    var formCount = container.find('.skills-form').length;
+    
+    var newForm = $('<div class="skills-form mb-4 p-3 border rounded">' +
+      '<div class="d-flex justify-content-end mb-2">' +
+        '<button type="button" class="oh-btn oh-btn--danger oh-btn--sm remove-skill">' +
+          '<ion-icon name="trash-outline"></ion-icon> {% trans "Remove" %}' +
+        '</button>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Skill Name" %}</label>' +
+            '<input type="text" class="form-control" name="skills-' + formCount + '-skill_name">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Proficiency Level" %}</label>' +
+            '<select class="form-control" name="skills-' + formCount + '-proficiency_level">' +
+              '<option value="">{% trans "Select proficiency level" %}</option>' +
+              '<option value="beginner">{% trans "Beginner" %}</option>' +
+              '<option value="intermediate">{% trans "Intermediate" %}</option>' +
+              '<option value="advanced">{% trans "Advanced" %}</option>' +
+              '<option value="expert">{% trans "Expert" %}</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="row mt-2">' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Years of Experience" %}</label>' +
+            '<input type="number" class="form-control" min="0" name="skills-' + formCount + '-years_of_experience">' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="oh-input__group">' +
+            '<label class="oh-label">{% trans "Relevant Years of Experience" %}</label>' +
+            '<input type="number" class="form-control" min="0" name="skills-' + formCount + '-relevant_years_of_experience">' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>');
+    
+    container.append(newForm);
+    
+    // Update management form
+    var managementForm = $('#skills-form input[name="skills-TOTAL_FORMS"]');
+    if (managementForm.length) {
+      managementForm.val(formCount + 1);
+    }
+  });
+
+  // Remove form functionality
+  $(document).on('click', '.remove-work-experience, .remove-education, .remove-certification, .remove-skill', function() {
+    var form = $(this).closest('.work-experience-form, .education-form, .certifications-form, .skills-form');
+    var container = form.closest('#work-experience-container, #education-container, #certifications-container, #skills-container');
+    
+    // Don't remove if it's the only form
+    if (container.find('.work-experience-form, .education-form, .certifications-form, .skills-form').length > 1) {
+      form.remove();
+      
+      // Update form count
+      var formType = container.attr('id').replace('-container', '');
+      var managementForm = $('#' + formType + '-form input[name="' + formType + '-TOTAL_FORMS"]');
+      if (managementForm.length) {
+        var currentCount = container.find('.work-experience-form, .education-form, .certifications-form, .skills-form').length;
+        managementForm.val(currentCount);
+      }
+    }
+  });
+
+  // Photo upload functionality
+  $('#choose_profile').change(function(e) {
+    var file = this.files[0];
+    var hiddenProfile = $('#hidden_profile');
+    hiddenProfile[0].files = this.files;
+
+    var reader = new FileReader();
+    reader.addEventListener('load', function() {
+      var imageUrl = reader.result;
+      $('.preview').attr('src', imageUrl);
+      setTimeout(function() {
+        $('#uploadPhotoModal').removeClass('oh-modal--show');
+      }, 2000);
+    });
+    reader.readAsDataURL(file);
+  });
+});
+</script>
+
+<style>
+.oh-tabs__tab {
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6c757d;
+  transition: all 0.3s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.oh-tabs__tab:hover {
+  background-color: #f8f9fa;
+  color: #495057;
+}
+
+.oh-tabs__tab--active {
+  color: #0d6efd;
+  border-bottom-color: #0d6efd;
+  font-weight: 500;
+}
+
+.oh-tabs__content {
+  display: none;
+  padding: 1.5rem 0;
+}
+
+.oh-tabs__content--active {
+  display: block;
+}
+
+.work-experience-form,
+.education-form,
+.certifications-form,
+.skills-form {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
+
+.work-experience-form:hover,
+.education-form:hover,
+.certifications-form:hover,
+.skills-form:hover {
+  background-color: #e9ecef;
+}
+
+.oh-input__group {
+  margin-bottom: 1rem;
+}
+
+.oh-label {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+}
+
+.oh-switch {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 16px;
+}
+
+.oh-switch__checkbox {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.oh-switch__slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 16px;
+}
+
+.oh-switch__slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+.oh-switch__checkbox:checked + .oh-switch__slider {
+  background-color: #0d6efd;
+}
+
+.oh-switch__checkbox:checked + .oh-switch__slider:before {
+  transform: translateX(14px);
+}
+</style>
+
+{% endblock content %} 

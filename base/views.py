@@ -291,7 +291,7 @@ def initialize_database(request):
     """
     if initialize_database_condition():
         if request.method == "POST":
-            password = request._post.get("password")
+            password = request.POST.get("password")
             if DB_INIT_PASSWORD == password:
                 return redirect(initialize_database_user)
             else:
@@ -3386,6 +3386,7 @@ def rotating_shift_assign_delete(request, obj_id):
         messages.error(request, _("Rotating shift assign not found."))
     except ProtectedError:
         messages.error(request, _("You cannot delete this rotating shift assign."))
+
     return rotating_shift_assign_redirect(request, obj_id, employee_id)
 
 
@@ -3419,20 +3420,43 @@ def employee_permission_assign(request):
             employee_user_id__user_permissions__isnull=False
         ).distinct()
         context["show_assign"] = True
-    permissions = [
-        {
-            "app": app_name.capitalize().replace("_", " "),
-            "app_models": [
+
+    RECRUITMENT_MODEL_DISPLAY = {
+        "recruitment": "Jobs",
+        "candidateapplication": "Job Applications",
+        "candidate": "Candidates",
+        "interviewschedule": "Interview",
+        "stage": "Stages",
+        "skillzone": "Skill Zone",
+        "recruitmentsurvey": "Job Survey",
+    }
+    RECRUITMENT_MODELS = set(RECRUITMENT_MODEL_DISPLAY.keys())
+
+    permissions = []
+    for app_name in APPS:
+        if app_name == "recruitment":
+            app_models = [
+                {
+                    "verbose_name": RECRUITMENT_MODEL_DISPLAY[model._meta.model_name],
+                    "model_name": model._meta.model_name,
+                }
+                for model in get_models_in_app(app_name)
+                if model._meta.model_name in RECRUITMENT_MODELS
+            ]
+        else:
+            app_models = [
                 {
                     "verbose_name": model._meta.verbose_name.capitalize(),
                     "model_name": model._meta.model_name,
                 }
                 for model in get_models_in_app(app_name)
                 if model._meta.model_name not in NO_PERMISSION_MODALS
-            ],
-        }
-        for app_name in APPS
-    ]
+            ]
+        permissions.append({
+            "app": app_name.capitalize().replace("_", " "),
+            "app_models": app_models,
+        })
+
     context["permissions"] = permissions
     context["no_permission_models"] = NO_PERMISSION_MODALS
     context["employees"] = paginator_qry(employees, request.GET.get("page"))
@@ -3443,7 +3467,6 @@ def employee_permission_assign(request):
     )
 
 
-@login_required
 @permission_required("view_permissions")
 def employee_permission_search(request, codename=None, uid=None):
     """
@@ -3460,20 +3483,44 @@ def employee_permission_search(request, codename=None, uid=None):
             employee_user_id__user_permissions__isnull=False
         ).distinct()
         context["show_assign"] = True
-    permissions = [
-        {
+    
+    RECRUITMENT_MODEL_DISPLAY = {
+        "recruitment": "Jobs",
+        "candidateapplication": "Job Applications",
+        "candidate": "Candidates",
+        "interviewschedule": "Interview",
+        "stage": "Stages",
+        "skillzone": "Skill Zone",
+        "recruitmentsurvey": "Job Survey",
+    }
+    RECRUITMENT_MODELS = set(RECRUITMENT_MODEL_DISPLAY.keys())
+    
+    permissions = []
+    for app_name in APPS:
+        app_models = []
+        if app_name == "recruitment":
+            for model in get_models_in_app(app_name):
+                if model._meta.model_name in RECRUITMENT_MODELS:
+                    app_models.append(
+                        {
+                            "verbose_name": RECRUITMENT_MODEL_DISPLAY[model._meta.model_name],
+                            "model_name": model._meta.model_name,
+                        }
+                    )
+        else:
+            for model in get_models_in_app(app_name):
+                if model._meta.model_name not in NO_PERMISSION_MODALS:
+                    app_models.append(
+                        {
+                            "verbose_name": model._meta.verbose_name.capitalize(),
+                            "model_name": model._meta.model_name,
+                        }
+                    )
+        permissions.append({
             "app": app_name.capitalize().replace("_", " "),
-            "app_models": [
-                {
-                    "verbose_name": model._meta.verbose_name.capitalize(),
-                    "model_name": model._meta.model_name,
-                }
-                for model in get_models_in_app(app_name)
-                if model._meta.model_name not in NO_PERMISSION_MODALS
-            ],
-        }
-        for app_name in APPS
-    ]
+            "app_models": app_models,
+        })
+    
     context["permissions"] = permissions
     context["no_permission_models"] = NO_PERMISSION_MODALS
     context["employees"] = paginator_qry(employees, request.GET.get("page"))
@@ -3521,16 +3568,37 @@ def permission_table(request):
 
     no_permission_models = NO_PERMISSION_MODALS
 
+    RECRUITMENT_MODEL_DISPLAY = {
+        "recruitment": "Jobs",
+        "candidateapplication": "Job Applications",
+        "candidate": "Candidates",
+        "interviewschedule": "Interview",
+        "stage": "Stages",
+        "skillzone": "Skill Zone",
+        "recruitmentsurvey": "Job Survey",
+    }
+    RECRUITMENT_MODELS = set(RECRUITMENT_MODEL_DISPLAY.keys())
+
     for app_name in apps:
         app_models = []
-        for model in get_models_in_app(app_name):
-            if model not in no_permission_models:
-                app_models.append(
-                    {
-                        "verbose_name": model._meta.verbose_name.capitalize(),
-                        "model_name": model._meta.model_name,
-                    }
-                )
+        if app_name == "recruitment":
+            for model in get_models_in_app(app_name):
+                if model._meta.model_name in RECRUITMENT_MODELS:
+                    app_models.append(
+                        {
+                            "verbose_name": RECRUITMENT_MODEL_DISPLAY[model._meta.model_name],
+                            "model_name": model._meta.model_name,
+                        }
+                    )
+        else:
+            for model in get_models_in_app(app_name):
+                if model._meta.model_name not in no_permission_models:
+                    app_models.append(
+                        {
+                            "verbose_name": model._meta.verbose_name.capitalize(),
+                            "model_name": model._meta.model_name,
+                        }
+                    )
         permissions.append(
             {"app": app_name.capitalize().replace("_", " "), "app_models": app_models}
         )

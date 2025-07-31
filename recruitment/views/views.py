@@ -75,7 +75,7 @@ from recruitment.filters import (
     CandidateFilter,
     CandidateApplicationFilter,
     CandidateReGroup,
-    InterviewFilter,
+
     RecruitmentFilter,
     SkillZoneCandFilter,
     SkillZoneFilter,
@@ -92,7 +92,7 @@ from recruitment.forms import (
     RecruitmentCreationForm,
     RejectReasonForm,
     ResumeForm,
-    ScheduleInterviewForm,
+
     SkillsForm,
     TechnicalSkillForm,
     NonTechnicalSkillForm,
@@ -105,7 +105,7 @@ from recruitment.forms import (
     StageNoteForm,
     StageNoteUpdateForm,
     ToSkillZoneForm,
-    CandidateSkillRatingForm,
+    CandidateApplicationSkillRatingForm,
     CandidateWorkExperienceFormSet,
     CandidateEducationFormSet,
     CandidateSkillFormSet,
@@ -118,7 +118,7 @@ from recruitment.models import (
     CandidateApplication,
     CandidateDocument,
     CandidateRating,
-    InterviewSchedule,
+
     LinkedInAccount,
     Recruitment,
     RecruitmentGeneralSetting,
@@ -133,8 +133,8 @@ from recruitment.models import (
     Stage,
     StageFiles,
     StageNote,
-    CandidateSkillRating,
     CandidateWorkProject,
+    CandidateApplicationSkillRating,
 )
 from recruitment.views.linkedin import delete_post, post_recruitment_in_linkedin
 from recruitment.views.paginator_qry import paginator_qry
@@ -1142,13 +1142,191 @@ def view_note(request, cand_id):
     Args:
         id : candidate instance id
     """
-    candidate_obj = Candidate.objects.get(id=cand_id)
-    notes = candidate_obj.stagenote_set.all().order_by("-id")
-    return render(
-        request,
-        "pipeline/pipeline_components/view_note.html",
-        {"cand": candidate_obj, "notes": notes},
-    )
+    try:
+        # First try to get as Candidate
+        candidate_obj = Candidate.objects.get(id=cand_id)
+        notes = candidate_obj.stagenote_set.all().order_by("-id")
+        return render(
+            request,
+            "pipeline/pipeline_components/view_note.html",
+            {"cand": candidate_obj, "notes": notes},
+        )
+    except Candidate.DoesNotExist:
+        # If not found as Candidate, try as CandidateApplication
+        try:
+            from recruitment.models import CandidateApplication, CandidateApplicationSkillRating
+            candidate_app = CandidateApplication.objects.get(id=cand_id)
+            
+            # Get stage notes for this candidate application
+            stage_notes = candidate_app.stagenoteapplication_set.all().order_by("-id")
+            
+            # Get skill rating notes for this candidate application
+            skill_rating_notes = CandidateApplicationSkillRating.objects.filter(
+                candidate_application=candidate_app,
+                notes__isnull=False
+            ).exclude(notes='').order_by('-created_at')
+            
+            # Combine both types of notes
+            all_notes = list(stage_notes) + list(skill_rating_notes)
+            
+            # Sort by creation date (newest first)
+            all_notes.sort(key=lambda x: x.created_at, reverse=True)
+            
+            return render(
+                request,
+                "pipeline/pipeline_components/view_note.html",
+                {"cand": candidate_app, "notes": all_notes},
+            )
+        except CandidateApplication.DoesNotExist:
+            messages.error(request, _("Candidate not found."))
+            return HttpResponse("")
+
+
+@login_required
+@hx_request_required
+@manager_can_enter(perm="recruitment.view_stagenote")
+def view_combined_rating_notes(request, cand_id):
+    """
+    This method renders a combined view of skill ratings and notes for a candidate
+    Args:
+        cand_id : candidate instance id
+    """
+    try:
+        from recruitment.models import CandidateApplication, CandidateApplicationSkillRating, Stage
+        
+        candidate_obj = Candidate.objects.get(id=cand_id)
+        
+        # Get all candidate applications for this candidate
+        candidate_applications = CandidateApplication.objects.filter(
+            email=candidate_obj.email
+        ).order_by('recruitment_id', 'stage_id__sequence')
+        
+        # Group applications by recruitment
+        recruitments_data = {}
+        
+        for app in candidate_applications:
+            recruitment_id = app.recruitment_id.id if app.recruitment_id else 'unknown'
+            recruitment_name = app.recruitment_id.title if app.recruitment_id else 'Unknown Recruitment'
+            
+            if recruitment_id not in recruitments_data:
+                recruitments_data[recruitment_id] = {
+                    'recruitment_name': recruitment_name,
+                    'stages': []
+                }
+            
+            stage_data = {
+                'stage': app.stage_id,
+                'stage_name': app.stage_id.stage if app.stage_id else 'Unknown Stage',
+                'application': app,
+                'skill_ratings': [],
+                'technical_ratings': [],
+                'non_technical_ratings': [],
+                'technical_avg': 0,
+                'non_technical_avg': 0,
+                'stage_average': 0,
+                'notes': []
+            }
+            
+            # Get skill ratings for this stage
+            if app.stage_id:
+                stage_ratings = CandidateApplicationSkillRating.objects.filter(
+                    candidate_application=app,
+                    stage=app.stage_id
+                ).order_by('skill_category', 'skill_name')
+                
+                technical_ratings = [r for r in stage_ratings if r.skill_category == 'technical']
+                non_technical_ratings = [r for r in stage_ratings if r.skill_category == 'non_technical']
+                
+                stage_data['skill_ratings'] = stage_ratings
+                stage_data['technical_ratings'] = technical_ratings
+                stage_data['non_technical_ratings'] = non_technical_ratings
+                
+                # Calculate averages
+                if technical_ratings:
+                    stage_data['technical_avg'] = round(sum(r.rating for r in technical_ratings) / len(technical_ratings), 1)
+                
+                if non_technical_ratings:
+                    stage_data['non_technical_avg'] = round(sum(r.rating for r in non_technical_ratings) / len(non_technical_ratings), 1)
+                
+                if stage_ratings:
+                    stage_data['stage_average'] = round(sum(r.rating for r in stage_ratings) / len(stage_ratings), 1)
+                
+                # Get notes for this stage
+                candidate_notes = candidate_obj.stagenote_set.filter(stage_id=app.stage_id).order_by("-id")
+                application_notes = app.stagenoteapplication_set.filter(stage_id=app.stage_id).order_by("-id")
+                
+                # Get skill rating notes
+                skill_rating_notes = []
+                skill_ratings_with_notes = CandidateApplicationSkillRating.objects.filter(
+                    candidate_application=app,
+                    stage=app.stage_id,
+                    notes__isnull=False
+                ).exclude(notes='').order_by('-created_at')
+                
+                seen_notes = set()
+                for rating in skill_ratings_with_notes:
+                    if rating.notes and rating.notes.strip() and rating.notes not in seen_notes:
+                        seen_notes.add(rating.notes)
+                        skill_rating_notes.append({
+                            'description': rating.notes,
+                            'created_at': rating.created_at,
+                            'created_by': rating.employee,
+                            'stage_id': app.stage_id,
+                            'source': 'skill_rating'
+                        })
+                
+                # Combine all notes
+                all_notes = list(candidate_notes) + list(application_notes) + skill_rating_notes
+                
+                # Sort notes by creation date, handling both model objects and dictionaries
+                def get_created_at(note):
+                    if hasattr(note, 'created_at'):
+                        return note.created_at
+                    elif isinstance(note, dict) and 'created_at' in note:
+                        return note['created_at']
+                    else:
+                        # Fallback for objects without created_at
+                        return getattr(note, 'id', 0)
+                
+                all_notes.sort(key=get_created_at, reverse=True)
+                stage_data['notes'] = all_notes
+            
+            recruitments_data[recruitment_id]['stages'].append(stage_data)
+        
+        # Calculate recruitment averages and overall average
+        recruitment_averages = {}
+        all_stage_averages = []
+        
+        for recruitment_id, recruitment_data in recruitments_data.items():
+            stage_averages = []
+            for stage_data in recruitment_data['stages']:
+                if stage_data['stage_average'] > 0:
+                    stage_averages.append(stage_data['stage_average'])
+                    all_stage_averages.append(stage_data['stage_average'])
+            
+            if stage_averages:
+                recruitment_averages[recruitment_data['recruitment_name']] = round(sum(stage_averages) / len(stage_averages), 1)
+        
+        overall_average = round(sum(all_stage_averages) / len(all_stage_averages), 1) if all_stage_averages else 0
+        
+        context = {
+            'candidate': candidate_obj,
+            'recruitments_data': recruitments_data,
+            'recruitment_averages': recruitment_averages,
+            'overall_average': overall_average,
+        }
+        
+        return render(
+            request,
+            "candidate/combined_rating_notes.html",
+            context,
+        )
+    except Exception as e:
+        import traceback
+        print(f"Error in view_combined_rating_notes: {str(e)}")
+        print(traceback.format_exc())
+        messages.error(request, f"Error loading combined view: {str(e)}")
+        return HttpResponse("")
 
 
 @login_required
@@ -1217,55 +1395,108 @@ def create_note(request, cand_id=None):
 @manager_can_enter(perm="recruitment.change_stagenote")
 def note_update(request, note_id):
     """
-    This method is used to update the stage not
+    This method is used to update the stage note
     Args:
         id : stage note instance id
     """
-    note = StageNote.objects.get(id=note_id)
-    form = StageNoteUpdateForm(instance=note)
-    if request.POST:
-        form = StageNoteUpdateForm(request.POST, request.FILES, instance=note)
-        if form.is_valid():
-            form.save()
-            messages.success(request, _("Note updated successfully..."))
-            cand_id = note.candidate_id.id
-            return redirect("view-note", cand_id=cand_id)
-
-    return render(
-        request, "pipeline/pipeline_components/update_note.html", {"form": form}
-    )
+    try:
+        # First try to get as StageNote (for Candidate objects)
+        note = StageNote.objects.get(id=note_id)
+        form = StageNoteUpdateForm(instance=note)
+        if request.POST:
+            form = StageNoteUpdateForm(request.POST, request.FILES, instance=note)
+            if form.is_valid():
+                form.save()
+                messages.success(request, _("Note updated successfully..."))
+                cand_id = note.candidate_id.id
+                return redirect("view-note", cand_id=cand_id)
+        
+        return render(
+            request, "pipeline/pipeline_components/update_note.html", {"form": form}
+        )
+    except StageNote.DoesNotExist:
+        # If not found as StageNote, try as StageNoteApplication (for CandidateApplication objects)
+        try:
+            from recruitment.models import StageNoteApplication
+            note = StageNoteApplication.objects.get(id=note_id)
+            form = StageNoteApplicationForm(instance=note)
+            if request.POST:
+                form = StageNoteApplicationForm(request.POST, request.FILES, instance=note)
+                if form.is_valid():
+                    form.save()
+                    messages.success(request, _("Note updated successfully..."))
+                    cand_id = note.candidate_application_id.id
+                    return redirect("view-note", cand_id=cand_id)
+            
+            return render(
+                request, "pipeline/pipeline_components/update_note.html", {"form": form}
+            )
+        except StageNoteApplication.DoesNotExist:
+            messages.error(request, _("Note not found."))
+            return HttpResponse("")
 
 
 @login_required
 @manager_can_enter(perm="recruitment.change_stagenote")
 def note_update_individual(request, note_id):
     """
-    This method is used to update the stage not
+    This method is used to update the stage note
     Args:
         id : stage note instance id
     """
-    note = StageNote.objects.get(id=note_id)
-    form = StageNoteForm(instance=note)
-    if request.POST:
-        form = StageNoteForm(request.POST, request.FILES, instance=note)
-        if form.is_valid():
-            form.save()
-            messages.success(request, _("Note updated successfully..."))
-            response = render(
+    try:
+        # First try to get as StageNote (for Candidate objects)
+        note = StageNote.objects.get(id=note_id)
+        form = StageNoteForm(instance=note)
+        if request.POST:
+            form = StageNoteForm(request.POST, request.FILES, instance=note)
+            if form.is_valid():
+                form.save()
+                messages.success(request, _("Note updated successfully..."))
+                response = render(
+                    request,
+                    "pipeline/pipeline_components/update_note_individual.html",
+                    {"form": form},
+                )
+                return HttpResponse(
+                    response.content.decode("utf-8") + "<script>location.reload();</script>"
+                )
+        return render(
+            request,
+            "pipeline/pipeline_components/update_note_individual.html",
+            {
+                "form": form,
+            },
+        )
+    except StageNote.DoesNotExist:
+        # If not found as StageNote, try as StageNoteApplication (for CandidateApplication objects)
+        try:
+            from recruitment.models import StageNoteApplication
+            note = StageNoteApplication.objects.get(id=note_id)
+            form = StageNoteApplicationForm(instance=note)
+            if request.POST:
+                form = StageNoteApplicationForm(request.POST, request.FILES, instance=note)
+                if form.is_valid():
+                    form.save()
+                    messages.success(request, _("Note updated successfully..."))
+                    response = render(
+                        request,
+                        "pipeline/pipeline_components/update_note_individual.html",
+                        {"form": form},
+                    )
+                    return HttpResponse(
+                        response.content.decode("utf-8") + "<script>location.reload();</script>"
+                    )
+            return render(
                 request,
                 "pipeline/pipeline_components/update_note_individual.html",
-                {"form": form},
+                {
+                    "form": form,
+                },
             )
-            return HttpResponse(
-                response.content.decode("utf-8") + "<script>location.reload();</script>"
-            )
-    return render(
-        request,
-        "pipeline/pipeline_components/update_note_individual.html",
-        {
-            "form": form,
-        },
-    )
+        except StageNoteApplication.DoesNotExist:
+            messages.error(request, _("Note not found."))
+            return HttpResponse("")
 
 
 @login_required
@@ -1276,16 +1507,33 @@ def add_more_files(request, id):
     Args:
         id : stage note instance id
     """
-    note = StageNote.objects.get(id=id)
-    if request.method == "POST":
-        files = request.FILES.getlist("files")
-        files_ids = []
-        for file in files:
-            instance = StageFiles.objects.create(files=file)
-            files_ids.append(instance.id)
-
-            note.stage_files.add(instance.id)
-    return redirect("view-note", cand_id=note.candidate_id.id)
+    try:
+        # First try to get as StageNote (for Candidate objects)
+        note = StageNote.objects.get(id=id)
+        if request.method == "POST":
+            files = request.FILES.getlist("files")
+            files_ids = []
+            for file in files:
+                instance = StageFiles.objects.create(files=file)
+                files_ids.append(instance.id)
+                note.stage_files.add(instance.id)
+        return redirect("view-note", cand_id=note.candidate_id.id)
+    except StageNote.DoesNotExist:
+        # If not found as StageNote, try as StageNoteApplication (for CandidateApplication objects)
+        try:
+            from recruitment.models import StageNoteApplication
+            note = StageNoteApplication.objects.get(id=id)
+            if request.method == "POST":
+                files = request.FILES.getlist("files")
+                files_ids = []
+                for file in files:
+                    instance = StageFiles.objects.create(files=file)
+                    files_ids.append(instance.id)
+                    note.stage_files.add(instance.id)
+            return redirect("view-note", cand_id=note.candidate_application_id.id)
+        except StageNoteApplication.DoesNotExist:
+            messages.error(request, _("Note not found."))
+            return HttpResponse("")
 
 
 @login_required
@@ -1752,91 +2000,7 @@ def candidate_view(request):
     )
 
 
-@login_required
-@hx_request_required
-def interview_filter_view(request):
-    """
-    This method is used to filter Disciplinary Action.
-    """
 
-    previous_data = request.GET.urlencode()
-
-    if request.user.has_perm("recruitment.view_interviewschedule"):
-        interviews = InterviewSchedule.objects.all().order_by("-interview_date")
-    else:
-        interviews = InterviewSchedule.objects.filter(
-            employee_id=request.user.employee_get.id
-        ).order_by("-interview_date")
-
-    if request.GET.get("sortby"):
-        interviews = sortby(request, interviews, "sortby")
-
-    dis_filter = InterviewFilter(request.GET, queryset=interviews).qs
-
-    page_number = request.GET.get("page")
-    page_obj = paginator_qry(dis_filter, page_number)
-    data_dict = parse_qs(previous_data)
-    get_key_instances(InterviewSchedule, data_dict)
-    now = timezone.now()
-    return render(
-        request,
-        "candidate/interview_list.html",
-        {
-            "data": page_obj,
-            "pd": previous_data,
-            "filter_dict": data_dict,
-            "now": now,
-        },
-    )
-
-
-@login_required
-def interview_view(request):
-    """
-    This method render all interviews to the template
-    """
-    previous_data = request.GET.urlencode()
-
-    if request.user.has_perm("recruitment.view_interviewschedule"):
-        interviews = InterviewSchedule.objects.all().order_by("-interview_date")
-    else:
-        interviews = InterviewSchedule.objects.filter(
-            employee_id=request.user.employee_get.id
-        ).order_by("-interview_date")
-
-    form = InterviewFilter(request.GET, queryset=interviews)
-    page_number = request.GET.get("page")
-    page_obj = paginator_qry(form.qs, page_number)
-    previous_data = request.GET.urlencode()
-    template = "candidate/interview_view.html"
-    now = timezone.now()
-
-    return render(
-        request,
-        template,
-        {
-            "data": page_obj,
-            "pd": previous_data,
-            "f": form,
-            "now": now,
-        },
-    )
-
-
-@login_required
-@manager_can_enter(perm="recruitment.change_interviewschedule")
-def interview_employee_remove(request, interview_id, employee_id):
-    """
-    This view is used to remove the employees from the meeting ,
-    Args:
-        interview_id(int) : primarykey of the interview.
-        employee_id(int) : primarykey of the employee
-    """
-    interview = InterviewSchedule.objects.filter(id=interview_id).first()
-    interview.employee_id.remove(employee_id)
-    messages.success(request, "Interviewer removed succesfully.")
-    interview.save()
-    return HttpResponse("<script>$('.filterButton')[0].click()</script>")
 
 
 @login_required
@@ -2209,17 +2373,112 @@ def delete_profile_image(request, obj_id):
 @permission_required(perm="recruitment.view_history")
 def candidate_history(request, cand_id):
     """
-    This method is used to view candidate stage changes
+    This method is used to view candidate stage changes and pipeline history
     Args:
         id : candidate_id
     """
-    candidate_obj = Candidate.objects.get(id=cand_id)
-    candidate_history_queryset = candidate_obj.history.all()
-    return render(
-        request,
-        "candidate/candidate_history.html",
-        {"history": candidate_history_queryset},
-    )
+    try:
+        from recruitment.models import CandidateApplication, CandidateApplicationSkillRating, Stage
+        
+        candidate_obj = Candidate.objects.get(id=cand_id)
+        candidate_history_queryset = candidate_obj.history.all()
+        
+        # Get all candidate applications for this candidate
+        candidate_applications = CandidateApplication.objects.filter(
+            email=candidate_obj.email
+        ).order_by('recruitment_id', 'stage_id__sequence')
+        
+        # Collect all pipeline events
+        pipeline_events = []
+        
+        for app in candidate_applications:
+            recruitment_name = app.recruitment_id.title if app.recruitment_id else 'Unknown Recruitment'
+            
+            # Get skill ratings
+            if app.stage_id:
+                skill_ratings = CandidateApplicationSkillRating.objects.filter(
+                    candidate_application=app,
+                    stage=app.stage_id
+                ).order_by('created_at')
+                
+                for rating in skill_ratings:
+                    pipeline_events.append({
+                        'type': 'skill_rating',
+                        'recruitment': recruitment_name,
+                        'stage': rating.stage.stage if rating.stage else 'Unknown Stage',
+                        'skill_name': rating.skill_name,
+                        'skill_category': rating.skill_category,
+                        'rating': rating.rating,
+                        'rated_by': rating.employee.get_full_name() if rating.employee else 'Unknown',
+                        'rated_at': rating.created_at,
+                        'notes': rating.notes if rating.notes else None,
+                        'application': app
+                    })
+            
+            # Get notes from skill ratings (unique notes only)
+            if app.stage_id:
+                skill_ratings_with_notes = CandidateApplicationSkillRating.objects.filter(
+                    candidate_application=app,
+                    stage=app.stage_id,
+                    notes__isnull=False
+                ).exclude(notes='').order_by('created_at')
+                
+                seen_notes = set()
+                for rating in skill_ratings_with_notes:
+                    if rating.notes and rating.notes.strip() and rating.notes not in seen_notes:
+                        seen_notes.add(rating.notes)
+                        pipeline_events.append({
+                            'type': 'skill_rating_note',
+                            'recruitment': recruitment_name,
+                            'stage': rating.stage.stage if rating.stage else 'Unknown Stage',
+                            'note_content': rating.notes,
+                            'added_by': rating.employee.get_full_name() if rating.employee else 'Unknown',
+                            'added_at': rating.created_at,
+                            'application': app
+                        })
+            
+            # Get regular stage notes
+            candidate_notes = candidate_obj.stagenote_set.filter(stage_id=app.stage_id).order_by("created_at")
+            for note in candidate_notes:
+                pipeline_events.append({
+                    'type': 'stage_note',
+                    'recruitment': recruitment_name,
+                    'stage': note.stage_id.stage if note.stage_id else 'Unknown Stage',
+                    'note_content': note.description,
+                    'added_by': note.created_by.get_full_name() if note.created_by else 'Unknown',
+                    'added_at': note.created_at,
+                    'application': app
+                })
+            
+            # Get application notes
+            application_notes = app.stagenoteapplication_set.filter(stage_id=app.stage_id).order_by("created_at")
+            for note in application_notes:
+                pipeline_events.append({
+                    'type': 'application_note',
+                    'recruitment': recruitment_name,
+                    'stage': note.stage_id.stage if note.stage_id else 'Unknown Stage',
+                    'note_content': note.description,
+                    'added_by': note.created_by.get_full_name() if note.created_by else 'Unknown',
+                    'added_at': note.created_at,
+                    'application': app
+                })
+        
+        # Sort all events by timestamp (newest first)
+        pipeline_events.sort(key=lambda x: x.get('rated_at', x.get('added_at')), reverse=True)
+        
+        context = {
+            'history': candidate_history_queryset,
+            'pipeline_events': pipeline_events,
+            'candidate': candidate_obj,
+        }
+        
+        return render(request, "candidate/candidate_history.html", context)
+    except Exception as e:
+        import traceback
+        print(f"Error in candidate_history: {str(e)}")
+        print(traceback.format_exc())
+        messages.error(request, f"An error occurred: {str(e)}")
+        return render(request, "candidate/candidate_history.html", {"history": candidate_obj.history.all()})
 
 
 @login_required
@@ -2255,159 +2514,16 @@ def form_send_mail(request, cand_id=None):
     )
 
 
-@login_required
-@hx_request_required
-@manager_can_enter(perm="recruitment.add_interviewschedule")
-def interview_schedule(request, cand_id):
-    """
-    This method is used to Schedule interview to candidate
-    Args:
-        cand_id : candidate instance id
-    """
-    candidate = Candidate.objects.get(id=cand_id)
-    candidates = Candidate.objects.filter(id=cand_id)
-    template = "pipeline/pipeline_components/schedule_interview.html"
-    form = ScheduleInterviewForm(initial={"candidate_id": candidate})
-    form.fields["candidate_id"].queryset = candidates
-    if request.method == "POST":
-        form = ScheduleInterviewForm(request.POST)
-        if form.is_valid():
-            form.save()
-            emp_ids = form.cleaned_data["employee_id"]
-            cand_id = form.cleaned_data["candidate_id"]
-            interview_date = form.cleaned_data["interview_date"]
-            interview_time = form.cleaned_data["interview_time"]
-            users = [employee.employee_user_id for employee in emp_ids]
-            notify.send(
-                request.user.employee_get,
-                recipient=users,
-                verb=f"You are scheduled as an interviewer for an interview with {cand_id.name} on {interview_date} at {interview_time}.",
-                verb_ar=f"أنت مجدول كمقابلة مع {cand_id.name} يوم {interview_date} في توقيت {interview_time}.",
-                verb_de=f"Sie sind als Interviewer für ein Interview mit {cand_id.name} am {interview_date} um {interview_time} eingeplant.",
-                verb_es=f"Estás programado como entrevistador para una entrevista con {cand_id.name} el {interview_date} a las {interview_time}.",
-                verb_fr=f"Vous êtes programmé en tant qu'intervieweur pour un entretien avec {cand_id.name} le {interview_date} à {interview_time}.",
-                icon="people-circle",
-                redirect=reverse("interview-view"),
-            )
-
-            messages.success(request, "Interview Scheduled successfully.")
-            return HttpResponse("<script>window.location.reload()</script>")
-    return render(request, template, {"form": form, "cand_id": cand_id})
 
 
-@login_required
-@hx_request_required
-@manager_can_enter(perm="recruitment.add_interviewschedule")
-def create_interview_schedule(request):
-    """
-    This method is used to Schedule interview to candidate
-    Args:
-        cand_id : candidate instance id
-    """
-    candidates = Candidate.objects.all()
-    template = "candidate/interview_form.html"
-    form = ScheduleInterviewForm()
-    form.fields["candidate_id"].queryset = candidates
-    if request.method == "POST":
-        form = ScheduleInterviewForm(request.POST)
-        if form.is_valid():
-            form.save()
-            emp_ids = form.cleaned_data["employee_id"]
-            cand_id = form.cleaned_data["candidate_id"]
-            interview_date = form.cleaned_data["interview_date"]
-            interview_time = form.cleaned_data["interview_time"]
-            users = [employee.employee_user_id for employee in emp_ids]
-            notify.send(
-                request.user.employee_get,
-                recipient=users,
-                verb=f"You are scheduled as an interviewer for an interview with {cand_id.name} on {interview_date} at {interview_time}.",
-                verb_ar=f"أنت مجدول كمقابلة مع {cand_id.name} يوم {interview_date} في توقيت {interview_time}.",
-                verb_de=f"Sie sind als Interviewer für ein Interview mit {cand_id.name} am {interview_date} um {interview_time} eingeplant.",
-                verb_es=f"Estás programado como entrevistador para una entrevista con {cand_id.name} el {interview_date} a las {interview_time}.",
-                verb_fr=f"Vous êtes programmé en tant qu'intervieweur pour un entretien avec {cand_id.name} le {interview_date} à {interview_time}.",
-                icon="people-circle",
-                redirect=reverse("interview-view"),
-            )
-
-            messages.success(request, "Interview Scheduled successfully.")
-    return render(request, template, {"form": form})
 
 
-@login_required
-@hx_request_required
-@manager_can_enter(perm="recruitment.delete_interviewschedule")
-def interview_delete(request, interview_id):
-    """
-    Deletes an interview schedule.
-    Args:
-        interview_id: InterviewSchedule instance ID
-    """
-    view = request.GET.get("view", "false")
-
-    try:
-        InterviewSchedule.objects.get(id=interview_id).delete()
-        messages.success(request, _("Interview deleted successfully."))
-    except:
-        messages.error(request, _("Scheduled Interview not found"))
-
-    return HttpResponse(
-        "<script>$('.filterButton')[0].click()</script>"
-        if view == "true"
-        else "<script>window.location.reload()</script>"
-    )
 
 
-@login_required
-@hx_request_required
-@manager_can_enter(perm="recruitment.change_interviewschedule")
-def interview_edit(request, interview_id):
-    """
-    This method is used to Edit Schedule interview
-    Args:
-        interview_id : interview schedule instance id
-    """
-    interview = InterviewSchedule.objects.get(id=interview_id)
-    view = request.GET["view"]
-    if view == "true":
-        candidates = Candidate.objects.all()
-        view = "true"
-    else:
-        candidates = Candidate.objects.filter(id=interview.candidate_id.id)
-        view = "false"
-    template = "pipeline/pipeline_components/schedule_interview_update.html"
-    form = ScheduleInterviewForm(instance=interview)
-    form.fields["candidate_id"].queryset = candidates
-    if request.method == "POST":
-        form = ScheduleInterviewForm(request.POST, instance=interview)
-        if form.is_valid():
-            emp_ids = form.cleaned_data["employee_id"]
-            cand_id = form.cleaned_data["candidate_id"]
-            interview_date = form.cleaned_data["interview_date"]
-            interview_time = form.cleaned_data["interview_time"]
-            form.save()
-            users = [employee.employee_user_id for employee in emp_ids]
-            notify.send(
-                request.user.employee_get,
-                recipient=users,
-                verb=f"You are scheduled as an interviewer for an interview with {cand_id.name} on {interview_date} at {interview_time}.",
-                verb_ar=f"أنت مجدول كمقابلة مع {cand_id.name} يوم {interview_date} في توقيت {interview_time}.",
-                verb_de=f"Sie sind als Interviewer für ein Interview mit {cand_id.name} am {interview_date} um {interview_time} eingeplant.",
-                verb_es=f"Estás programado como entrevistador para una entrevista con {cand_id.name} el {interview_date} a las {interview_time}.",
-                verb_fr=f"Vous êtes programmé en tant qu'intervieweur pour un entretien avec {cand_id.name} le {interview_date} à {interview_time}.",
-                icon="people-circle",
-                redirect=reverse("interview-view"),
-            )
-            messages.success(request, "Interview updated successfully.")
-            return HttpResponse("<script>window.location.reload()</script>")
-    return render(
-        request,
-        template,
-        {
-            "form": form,
-            "interview_id": interview_id,
-            "view": view,
-        },
-    )
+
+
+
+
 
 
 def get_managers(request):
@@ -4159,7 +4275,7 @@ def candidate_add_notes(request, cand_id):
 def employee_profile_interview_tab(request):
     employee = request.user.employee_get
 
-    interviews = employee.interviewschedule_set.annotate(
+    interviews = InterviewScheduleApplication.objects.filter(employee_id=employee).annotate(
         is_today=Case(
             When(interview_date=date.today(), then=0),
             default=1,
@@ -4177,159 +4293,10 @@ def candidate_skill_rating(request, cand_id):
     Args:
         cand_id : candidate instance id
     """
-    if not (
-        request.user.has_perm("recruitment.change_candidate")
-        or request.user.has_perm("recruitment.add_candidateskillrating")
-    ):
-        messages.info(request, "You dont have permission.")
-        return HttpResponse("<script>window.location.reload()</script>")
-
-    candidate = Candidate.objects.get(id=cand_id)
-    template = "candidate/skill_rating_form.html"
-    
-    # Get recruitment and stage from request parameters
-    recruitment_id = request.GET.get('recruitment_id')
-    stage_id = request.GET.get('stage_id')
-    
-    recruitment = None
-    stage = None
-    
-    if recruitment_id:
-        recruitment = Recruitment.objects.get(id=recruitment_id)
-    if stage_id:
-        stage = Stage.objects.get(id=stage_id)
-    
-    # Get existing ratings for this candidate by current user in this context
-    existing_ratings = CandidateSkillRating.objects.filter(
-        candidate=candidate,
-        rated_by=request.user.employee_get,
-        recruitment=recruitment,
-        stage=stage
-    )
-    
-    if request.method == "POST":
-        # Handle bulk skill ratings
-        technical_skills = request.POST.getlist('technical_skills')
-        technical_ratings = request.POST.getlist('technical_ratings')
-        non_technical_skills = request.POST.getlist('non_technical_skills')
-        non_technical_ratings = request.POST.getlist('non_technical_ratings')
-        
-        # Process technical skill ratings
-        for i, skill_name in enumerate(technical_skills):
-            if i < len(technical_ratings) and technical_ratings[i]:
-                rating_value = float(technical_ratings[i])
-                if 0.0 <= rating_value <= 5.0:
-                    # Check if rating already exists in this context
-                    existing_rating = CandidateSkillRating.objects.filter(
-                        candidate=candidate,
-                        skill_name=skill_name,
-                        skill_category='technical',
-                        rated_by=request.user.employee_get,
-                        recruitment=recruitment,
-                        stage=stage
-                    ).first()
-                    
-                    if existing_rating:
-                        existing_rating.rating = rating_value
-                        existing_rating.save()
-                    else:
-                        CandidateSkillRating.objects.create(
-                            candidate=candidate,
-                            skill_name=skill_name,
-                            skill_category='technical',
-                            rating=rating_value,
-                            rated_by=request.user.employee_get,
-                            recruitment=recruitment,
-                            stage=stage
-                        )
-        
-        # Process non-technical skill ratings
-        for i, skill_name in enumerate(non_technical_skills):
-            if i < len(non_technical_ratings) and non_technical_ratings[i]:
-                rating_value = float(non_technical_ratings[i])
-                if 0.0 <= rating_value <= 5.0:
-                    # Check if rating already exists in this context
-                    existing_rating = CandidateSkillRating.objects.filter(
-                        candidate=candidate,
-                        skill_name=skill_name,
-                        skill_category='non_technical',
-                        rated_by=request.user.employee_get,
-                        recruitment=recruitment,
-                        stage=stage
-                    ).first()
-                    
-                    if existing_rating:
-                        existing_rating.rating = rating_value
-                        existing_rating.save()
-                    else:
-                        CandidateSkillRating.objects.create(
-                            candidate=candidate,
-                            skill_name=skill_name,
-                            skill_category='non_technical',
-                            rating=rating_value,
-                            rated_by=request.user.employee_get,
-                            recruitment=recruitment,
-                            stage=stage
-                        )
-        
-        # Handle custom skill rating
-        form = CandidateSkillRatingForm(request.POST)
-        if form.is_valid():
-            skill_rating = form.save(commit=False)
-            skill_rating.candidate = candidate
-            skill_rating.rated_by = request.user.employee_get
-            skill_rating.recruitment = recruitment
-            skill_rating.stage = stage
-            
-            # Check if rating already exists for this skill by this user in this context
-            existing_rating = CandidateSkillRating.objects.filter(
-                candidate=candidate,
-                skill_name=skill_rating.skill_name,
-                rated_by=request.user.employee_get,
-                recruitment=recruitment,
-                stage=stage
-            ).first()
-            
-            if existing_rating:
-                # Update existing rating
-                existing_rating.rating = skill_rating.rating
-                existing_rating.notes = skill_rating.notes
-                existing_rating.save()
-            else:
-                # Create new rating
-                skill_rating.save()
-        
-        messages.success(request, "Skill ratings saved successfully")
-        return HttpResponse("<script>window.location.reload()</script>")
-    else:
-        # Pre-populate form with current recruitment and stage
-        initial_data = {}
-        if recruitment:
-            initial_data['recruitment'] = recruitment
-        if stage:
-            initial_data['stage'] = stage
-        form = CandidateSkillRatingForm(initial=initial_data)
-    
-    # Get technical and non-technical skills from recruitment
-    technical_skills = []
-    non_technical_skills = []
-    
-    # Get skills from the recruitment if available
-    if recruitment:
-        technical_skills = recruitment.technical_skills.all()
-        non_technical_skills = recruitment.non_technical_skills.all()
-    
-    context = {
-        "form": form,
-        "cand_id": cand_id,
-        "candidate": candidate,
-        "recruitment": recruitment,
-        "stage": stage,
-        "existing_ratings": existing_ratings,
-        "technical_skills": technical_skills,
-        "non_technical_skills": non_technical_skills,
-    }
-    return render(request, template, context)
+    # Redirect to the new candidate application skill rating function
+    # This is a temporary compatibility function
+    messages.info(request, "This function has been updated. Please use the new skill rating system.")
+    return HttpResponse("<script>window.location.reload()</script>")
 
 
 @login_required
@@ -4545,6 +4512,213 @@ def candidate_work_projects_update(request, work_experience_id):
     }
     
     return render(request, 'candidate/dynamic_form.html', context)
+
+
+@hx_request_required
+def candidate_application_skill_rating(request, cand_id=None, candidate_application_id=None):
+    """
+    This method is used to rate candidate application skills
+    Args:
+        candidate_application_id : candidate application instance id
+        cand_id : legacy parameter for backward compatibility
+    """
+    try:
+        # Import models needed for this function
+        from recruitment.models import Recruitment, Stage, JobPosition
+        
+        # Handle backward compatibility - if cand_id is provided, convert to candidate_application_id
+        if cand_id and not candidate_application_id:
+            # Try to find a CandidateApplication for this candidate
+            try:
+                candidate = Candidate.objects.get(id=cand_id)
+                candidate_application = CandidateApplication.objects.filter(
+                    email=candidate.email
+                ).first()
+                if candidate_application:
+                    candidate_application_id = candidate_application.id
+                else:
+                    # Create a CandidateApplication if none exists
+                    try:
+                        # Get the first available recruitment
+                        recruitment = Recruitment.objects.filter(is_active=True).first()
+                        
+                        if recruitment:
+                            # Get the first stage
+                            stage = Stage.objects.filter(recruitment_id=recruitment, is_active=True).first()
+                            
+                            # Get the first job position
+                            job_position = JobPosition.objects.filter(is_active=True).first()
+                            
+                            if recruitment and stage and job_position:
+                                # Create a CandidateApplication
+                                candidate_application = CandidateApplication.objects.create(
+                                    name=candidate.name,
+                                    email=candidate.email,
+                                    mobile=candidate.mobile,
+                                    recruitment_id=recruitment,
+                                    stage_id=stage,
+                                    job_position_id=job_position,
+                                    source="software",
+                                    is_active=True
+                                )
+                                candidate_application_id = candidate_application.id
+                            else:
+                                messages.error(request, "No recruitment, stage, or job position available.")
+                                return HttpResponse("")
+                        else:
+                            messages.error(request, "No active recruitment available.")
+                            return HttpResponse("")
+                    except Exception as e:
+                        messages.error(request, f"Error creating candidate application: {str(e)}")
+                        return HttpResponse("")
+            except Candidate.DoesNotExist:
+                messages.error(request, "Candidate not found.")
+                return HttpResponse("")
+        
+        if not candidate_application_id:
+            messages.error(request, "No candidate application ID provided.")
+            return HttpResponse("")
+        if not (
+            request.user.has_perm("recruitment.change_candidateapplication")
+            or request.user.has_perm("recruitment.add_candidateapplicationskillrating")
+        ):
+            messages.info(request, "You dont have permission.")
+            return HttpResponse("")
+
+        candidate_application = CandidateApplication.objects.get(id=candidate_application_id)
+        template = "candidate/skill_rating_form.html"
+        
+        # Get stage from request parameters (POST or GET)
+        if request.method == "POST":
+            stage_id = request.POST.get('stage_id')
+        else:
+            stage_id = request.GET.get('stage_id')
+        stage = None
+        if stage_id:
+            stage = Stage.objects.get(id=stage_id)
+        
+        # Get existing ratings for this candidate application by current user in this context
+        existing_ratings = CandidateApplicationSkillRating.objects.filter(
+            candidate_application=candidate_application,
+            employee=request.user.employee_get,
+            stage=stage
+        )
+        
+        # Debug: Print existing ratings
+        # print(f"DEBUG GET: Found {existing_ratings.count()} existing ratings")
+        # for rating in existing_ratings:
+            # print(f"DEBUG GET: Rating - {rating.skill_name} ({rating.skill_category}): {rating.rating}, Notes: {rating.notes}")
+        
+        if request.method == "POST":
+            # Handle bulk skill ratings
+            technical_skills = request.POST.getlist('technical_skills')
+            technical_ratings = request.POST.getlist('technical_ratings')
+            non_technical_skills = request.POST.getlist('non_technical_skills')
+            non_technical_ratings = request.POST.getlist('non_technical_ratings')
+            notes = request.POST.get('notes', '')
+            
+            # Process technical skill ratings
+            for i, skill_name in enumerate(technical_skills):
+                if i < len(technical_ratings) and technical_ratings[i]:
+                    rating_value = float(technical_ratings[i])
+                    if 0.0 <= rating_value <= 5.0:
+                        # Check if rating already exists in this context
+                        existing_rating = CandidateApplicationSkillRating.objects.filter(
+                            candidate_application=candidate_application,
+                            skill_name=skill_name,
+                            skill_category='technical',
+                            employee=request.user.employee_get,
+                            stage=stage
+                        ).first()
+                        
+                        if existing_rating:
+                            existing_rating.rating = rating_value
+                            existing_rating.notes = notes
+                            existing_rating.save()
+                        else:
+                            CandidateApplicationSkillRating.objects.create(
+                                candidate_application=candidate_application,
+                                skill_name=skill_name,
+                                skill_category='technical',
+                                rating=rating_value,
+                                employee=request.user.employee_get,
+                                stage=stage,
+                                notes=notes
+                            )
+            
+            # Process non-technical skill ratings
+            for i, skill_name in enumerate(non_technical_skills):
+                if i < len(non_technical_ratings) and non_technical_ratings[i]:
+                    rating_value = float(non_technical_ratings[i])
+                    if 0.0 <= rating_value <= 5.0:
+                        # Check if rating already exists in this context
+                        existing_rating = CandidateApplicationSkillRating.objects.filter(
+                            candidate_application=candidate_application,
+                            skill_name=skill_name,
+                            skill_category='non_technical',
+                            employee=request.user.employee_get,
+                            stage=stage
+                        ).first()
+                        
+                        if existing_rating:
+                            existing_rating.rating = rating_value
+                            existing_rating.notes = notes
+                            existing_rating.save()
+                        else:
+                            CandidateApplicationSkillRating.objects.create(
+                                candidate_application=candidate_application,
+                                skill_name=skill_name,
+                                skill_category='non_technical',
+                                rating=rating_value,
+                                employee=request.user.employee_get,
+                                stage=stage,
+                                notes=notes
+                            )
+            
+            messages.success(request, "Skill ratings saved successfully")
+            # Return a response that will close the modal and show the flash message
+            return HttpResponse(
+                '<script>'
+                'document.querySelector("#createModal").classList.remove("oh-modal--show");'
+                'window.location.reload();'
+                '</script>'
+            )
+        else:
+            # Get technical and non-technical skills from recruitment
+            technical_skills = []
+            non_technical_skills = []
+            
+            if candidate_application.recruitment_id:
+                technical_skills = candidate_application.recruitment_id.technical_skills.all()
+                non_technical_skills = candidate_application.recruitment_id.non_technical_skills.all()
+            
+
+            
+            # Get existing notes from any rating (they should all have the same notes)
+            existing_notes = ""
+            if existing_ratings.exists():
+                existing_notes = existing_ratings.first().notes
+            
+            context = {
+                'candidate_application': candidate_application,
+                'technical_skills': technical_skills,
+                'non_technical_skills': non_technical_skills,
+                'existing_ratings': existing_ratings,
+                'existing_notes': existing_notes,
+                'stage': stage,
+                'cand_id': cand_id,
+            }
+            
+            return render(request, template, context)
+    except Exception as e:
+        import traceback
+        print(f"Error in candidate_application_skill_rating: {str(e)}")
+        print(traceback.format_exc())
+        messages.error(request, f"An error occurred: {str(e)}")
+        return HttpResponse("")
+
+
+
 
 
 

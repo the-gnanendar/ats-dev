@@ -1,0 +1,195 @@
+{% load i18n %}
+<div class="oh-modal__dialog-header">
+    <h5 class="oh-modal__dialog-title" id="createModalLabel">
+        {% trans "Schedule Interview" %} - {{ candidate_app.name }}
+    </h5>
+    <button type="button" class="oh-modal__close" data-dismiss="oh-modal" aria-label="Close">
+        <ion-icon name="close-outline"></ion-icon>
+    </button>
+</div>
+<div class="oh-modal__dialog-body">
+    <!-- Candidate Information -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="oh-info-card">
+                <div class="oh-info-card__header">
+                    <h6 class="oh-info-card__title">{% trans "Candidate Information" %}</h6>
+                </div>
+                <div class="oh-info-card__body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>{% trans "Name" %}:</strong> {{ candidate_app.name }}<br>
+                            <strong>{% trans "Email" %}:</strong> {{ candidate_app.email }}<br>
+                            <strong>{% trans "Mobile" %}:</strong> {{ candidate_app.mobile }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% trans "Recruitment" %}:</strong> {{ candidate_app.recruitment_id.title }}<br>
+                            <strong>{% trans "Job Position" %}:</strong> {{ candidate_app.job_position_id }}<br>
+                            <strong>{% trans "Current Stage" %}:</strong> {{ candidate_app.stage_id }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <form method="POST" 
+          action="{% url 'interview-schedule-application' candidate_app.id %}" 
+          hx-post="{% url 'interview-schedule-application' candidate_app.id %}"
+          hx-target="#createTarget"
+          hx-encoding="multipart/form-data"
+          id="interview-schedule-form">
+        {% csrf_token %}
+        {{ form.candidate_application_id }}
+        <div class="row">
+            <div class="col-12 col-sm-12 col-md-6 col-lg-6">
+                <label class="oh-label d-block">{% trans "Interview Date" %}</label>
+                {{ form.interview_date }}
+                {{ form.interview_date.errors }}
+            </div>
+            <div class="col-12 col-sm-12 col-md-6 col-lg-6">
+                <label class="oh-label d-block">{% trans "Interview Start Time" %}</label>
+                {{ form.interview_start_time }}
+                {{ form.interview_start_time.errors }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12 col-sm-12 col-md-6 col-lg-6">
+                <label class="oh-label d-block">{% trans "Interview End Time" %}</label>
+                <input type="time" class="oh-input w-100" id="id_interview_end_time" readonly>
+                <small class="text-muted">{% trans "Automatically calculated (45 minutes from start time)" %}</small>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                <label class="oh-label d-block">{% trans "Interviewers" %}</label>
+                {{ form.employee_id }}
+                {{ form.employee_id.errors }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                <label class="oh-label d-block">{% trans "Description" %}</label>
+                {{ form.description }}
+                {{ form.description.errors }}
+            </div>
+        </div>
+        <div class="oh-modal__dialog-footer">
+            <button type="submit" class="oh-btn oh-btn--secondary oh-btn--shadow">
+                {% trans "Schedule Interview" %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    $(document).ready(function(){
+        // Initialize date and time pickers
+        $('input[type="date"]').attr('min', new Date().toISOString().split('T')[0]);
+        
+        // Set default time to current time + 1 hour
+        var now = new Date();
+        now.setHours(now.getHours() + 1);
+        var timeString = now.toTimeString().slice(0, 5);
+        $('input[name="interview_start_time"]').val(timeString);
+        
+        // Function to calculate and display end time
+        function calculateEndTime() {
+            var startTime = $('input[name="interview_start_time"]').val();
+            if (startTime) {
+                var startDate = new Date('2000-01-01T' + startTime);
+                var endDate = new Date(startDate.getTime() + 45 * 60000); // Add 45 minutes
+                var endTime = endDate.toTimeString().slice(0, 5);
+                $('#id_interview_end_time').val(endTime);
+            }
+        }
+        
+        // Calculate end time on page load
+        calculateEndTime();
+        
+        // Calculate end time when start time changes
+        $('input[name="interview_start_time"]').on('change', calculateEndTime);
+        
+        // Auto-populate all relevant interviewers
+        var allInterviewers = [];
+        
+        // Add recruitment managers (Delivery/Account Managers)
+        {% if candidate_app.recruitment_id.recruitment_managers.exists %}
+            {% for manager in candidate_app.recruitment_id.recruitment_managers.all %}
+                allInterviewers.push({{ manager.id }});
+            {% endfor %}
+        {% endif %}
+        
+        // Add recruiters (default stage managers)
+        {% if candidate_app.recruitment_id.default_stage_manager.exists %}
+            {% for recruiter in candidate_app.recruitment_id.default_stage_manager.all %}
+                allInterviewers.push({{ recruiter.id }});
+            {% endfor %}
+        {% endif %}
+        
+        // Add stage interviewers if available
+        {% if candidate_app.stage_id and candidate_app.stage_id.stage_interviewers.exists %}
+            {% for interviewer in candidate_app.stage_id.stage_interviewers.all %}
+                allInterviewers.push({{ interviewer.id }});
+            {% endfor %}
+        {% endif %}
+        
+        // Add L1/L2/L3 interviewers based on stage type
+        {% if candidate_app.stage_id %}
+            {% if candidate_app.stage_id.stage_type == "l1_interview" and candidate_app.recruitment_id.l1_interviewer.exists %}
+                {% for interviewer in candidate_app.recruitment_id.l1_interviewer.all %}
+                    allInterviewers.push({{ interviewer.id }});
+                {% endfor %}
+            {% elif candidate_app.stage_id.stage_type == "l2_interview" and candidate_app.recruitment_id.l2_interviewer.exists %}
+                {% for interviewer in candidate_app.recruitment_id.l2_interviewer.all %}
+                    allInterviewers.push({{ interviewer.id }});
+                {% endfor %}
+            {% elif candidate_app.stage_id.stage_type == "l3_interview" and candidate_app.recruitment_id.l3_interviewer.exists %}
+                {% for interviewer in candidate_app.recruitment_id.l3_interviewer.all %}
+                    allInterviewers.push({{ interviewer.id }});
+                {% endfor %}
+            {% endif %}
+        {% endif %}
+        
+        // Remove duplicates
+        allInterviewers = [...new Set(allInterviewers)];
+        
+        // Select all relevant interviewers
+        allInterviewers.forEach(function(interviewerId) {
+            var option = $('#id_employee_id option[value="' + interviewerId + '"]');
+            if (option.length) {
+                option.prop('selected', true);
+            }
+        });
+        
+        // Handle different types of select widgets
+        var employeeSelect = $('#id_employee_id');
+        
+        // If it's a select2 widget
+        if (employeeSelect.hasClass('select2-hidden-accessible')) {
+            employeeSelect.select2('destroy').select2();
+        }
+        // If it's a custom oh-select widget
+        else if (employeeSelect.hasClass('oh-select')) {
+            employeeSelect.trigger('change');
+        }
+        // For standard select elements
+        else {
+            employeeSelect.trigger('change');
+        }
+        
+        // Additional trigger for any custom widgets
+        employeeSelect.trigger('select2:select');
+        
+        // Add a small delay to ensure the widget is properly updated
+        setTimeout(function() {
+            employeeSelect.trigger('change');
+        }, 100);
+        
+        // Form validation is handled by Django form validation
+        // No client-side validation needed as the form will show proper error messages
+        
+        // HTMX will handle the form submission automatically
+        // The server response will close the modal and reload the page
+    });
+</script> 

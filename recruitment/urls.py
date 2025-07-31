@@ -170,6 +170,7 @@ urlpatterns = [
         name="candidate-stage-update",
     ),
     path("view-note/<int:cand_id>/", views.view_note, name="view-note"),
+    path("view-combined-rating-notes/<int:cand_id>/", views.view_combined_rating_notes, name="view-combined-rating-notes"),
     path("add-note/<int:cand_id>/", views.add_note, name="add-note"),
     path("add-note", views.add_note, name="add-note-post"),
     path("create-note/<int:cand_id>/", views.create_note, name="create-note"),
@@ -197,39 +198,8 @@ urlpatterns = [
     ),
     path("send-mail/<int:cand_id>/", views.form_send_mail, name="send-mail"),
     path("send-mail/", views.form_send_mail, name="send-mail"),
-    path(
-        "interview-schedule/<int:cand_id>/",
-        views.interview_schedule,
-        name="interview-schedule",
-    ),
-    path(
-        "create-interview-schedule",
-        views.create_interview_schedule,
-        name="create-interview-schedule",
-    ),
-    path(
-        "edit-interview/<int:interview_id>/",
-        views.interview_edit,
-        name="edit-interview",
-    ),
-    path(
-        "delete-interview/<int:interview_id>/",
-        views.interview_delete,
-        name="delete-interview",
-    ),
     path("get_managers", views.get_managers, name="get_managers"),
     path("candidate-view/", views.candidate_view, name="candidate-view"),
-    path("interview-view/", views.interview_view, name="interview-view"),
-    path(
-        "interview-filter-view/",
-        views.interview_filter_view,
-        name="interview-filter-view",
-    ),
-    path(
-        "interview-employee-remove/<int:interview_id>/<int:employee_id>",
-        views.interview_employee_remove,
-        name="interview-employee-remove",
-    ),
     path(
         "candidate-filter-view",
         recruitment.views.search.candidate_filter_view,
@@ -479,7 +449,8 @@ urlpatterns = [
         name="skill-zone-cand-archive",
     ),
     path("to-skill-zone/<int:cand_id>", views.to_skill_zone, name="to-skill-zone"),
-    path("candidate-skill-rating/<int:cand_id>", views.candidate_skill_rating, name="candidate-skill-rating"),
+    # path("candidate-skill-rating/<int:cand_id>", views.candidate_application_skill_rating, name="candidate-skill-rating"),
+    path("candidate-application-skill-rating/<int:candidate_application_id>", views.candidate_application_skill_rating, name="candidate-application-skill-rating"),
     path(
         "skill-zone-cand-delete/<int:sz_cand_id>",
         views.skill_zone_cand_delete,
@@ -831,6 +802,16 @@ path(
         "interview-view-application/",
         candidate_application_views.interview_view_application,
         name="interview-view-application",
+    ),
+    path(
+        "interview-edit-application/<int:interview_id>/",
+        candidate_application_views.interview_edit_application,
+        name="interview-edit-application",
+    ),
+    path(
+        "interview-delete-application/<int:interview_id>/",
+        candidate_application_views.interview_delete_application,
+        name="interview-delete-application",
     ),
     
     # Employee conversion

@@ -14,7 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from base.filters import FilterSet
 from recruitment.models import (
     Candidate,
-    InterviewSchedule,
+
     LinkedInAccount,
     Recruitment,
     RecruitmentSurvey,
@@ -46,18 +46,18 @@ class CandidateFilter(FilterSet):
         field_name="name",
     )
 
-    # Interview-related filters (general)
+    # Interview-related filters (general) - using InterviewScheduleApplication
     interview_date = django_filters.DateFilter(
-        field_name="candidate_interview__interview_date",
+        field_name="candidateapplication__candidate_application_interview__interview_date",
         widget=forms.DateInput(attrs={"type": "date"}),
     )
     interview_date_from = django_filters.DateFilter(
-        field_name="candidate_interview__interview_date",
+        field_name="candidateapplication__candidate_application_interview__interview_date",
         lookup_expr="gte",
         widget=forms.DateInput(attrs={"type": "date"}),
     )
     interview_date_till = django_filters.DateFilter(
-        field_name="candidate_interview__interview_date",
+        field_name="candidateapplication__candidate_application_interview__interview_date",
         lookup_expr="lte",
         widget=forms.DateInput(attrs={"type": "date"}),
     )
@@ -92,8 +92,6 @@ class CandidateFilter(FilterSet):
             "source",
             "converted",
             "is_active",
-            "candidate_interview__interview_date",
-            "candidate_interview__employee_id",
             "skillzonecandidate_set__skill_zone_id",
             "skillzonecandidate_set__candidate_id",
         ]
@@ -113,7 +111,7 @@ class CandidateFilter(FilterSet):
         """Helper method to update field labels from model verbose names"""
 
         models = {
-            "interview": InterviewSchedule(),
+            "interview": InterviewScheduleApplication(),
             "skill_zone": SkillZoneCandidate(),
         }
 
@@ -440,62 +438,9 @@ class SkillZoneCandFilter(FilterSet):
     search = django_filters.CharFilter(
         field_name="candidate_id__name", method="cand_search"
     )
-    start_date = django_filters.DateFilter(
-        field_name="candidate__id__recruitment_id__start_date",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    end_date = django_filters.DateFilter(
-        field_name="candidate__id__recruitment_id__end_date",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    scheduled_from = django_filters.DateFilter(
-        field_name="candidate__id__joining_date",
-        lookup_expr="gte",
-        widget=forms.DateInput(attrs={"type": "date"}),
-        label=_("Joining From"),
-    )
-    probation_end = django_filters.DateFilter(
-        field_name="candidate__id__probation_end",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    probation_end_till = django_filters.DateFilter(
-        field_name="candidate__id__probation_end",
-        lookup_expr="lte",
-        widget=forms.DateInput(attrs={"type": "date"}),
-        label=_("Probation Till"),
-    )
-    probation_end_from = django_filters.DateFilter(
-        field_name="candidate__id__probation_end",
-        lookup_expr="gte",
-        widget=forms.DateInput(attrs={"type": "date"}),
-        label=_("Probation From"),
-    )
-    schedule_date = django_filters.DateFilter(
-        field_name="candidate__id__schedule_date",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    scheduled_till = django_filters.DateFilter(
-        field_name="candidate__id__joining_date",
-        lookup_expr="lte",
-        widget=forms.DateInput(attrs={"type": "date"}),
-        label=_("Joining Till"),
-    )
-    recruitment = django_filters.CharFilter(
-        field_name="candidate__id__recruitment_id__title", lookup_expr="icontains"
-    )
-
-    portal_sent = django_filters.BooleanFilter(
-        field_name="candidate__id__onboarding_portal",
-        method="filter_mail_sent",
-        widget=django_filters.widgets.BooleanWidget(),
-        label=_("Portal Sent"),
-    )
-    joining_set = django_filters.BooleanFilter(
-        field_name="candidate__id__joining_date",
-        method="filter_joining_set",
-        widget=django_filters.widgets.BooleanWidget(),
-        label=_("Joining Set"),
-    )
+    # Note: Removed complex field references that don't exist in the current model structure
+    # The SkillZoneCandidate model only has relationships to SkillZone and Candidate
+    # Complex relationships to Recruitment, Employee, etc. are not available
 
     class Meta:
         """
@@ -523,49 +468,7 @@ class SkillZoneCandFilter(FilterSet):
         ).distinct()
 
 
-class InterviewFilter(FilterSet):
-    """
-    Filter set class for Candidate model
 
-    Args:
-        FilterSet (class): custom filter set class to apply styling
-    """
-
-    search = django_filters.CharFilter(
-        field_name="candidate_id__name", lookup_expr="icontains"
-    )
-
-    scheduled_from = django_filters.DateFilter(
-        field_name="interview_date",
-        lookup_expr="gte",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    scheduled_till = django_filters.DateFilter(
-        field_name="interview_date",
-        lookup_expr="lte",
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-
-    class Meta:
-        """
-        Meta class to add the additional info
-        """
-
-        model = InterviewSchedule
-        fields = [
-            "candidate_id",
-            "employee_id",
-            "interview_date",
-        ]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.form["scheduled_from"].label = (
-            f"{self.Meta.model()._meta.get_field('interview_date').verbose_name} From"
-        )
-        self.form["scheduled_till"].label = (
-            f"{self.Meta.model()._meta.get_field('interview_date').verbose_name} Till"
-        )
 
 
 class LinkedInAccountFilter(FilterSet):
@@ -699,7 +602,6 @@ class CandidateApplicationFilter(FilterSet):
             "recruitment_id",
             "stage_id",
             "schedule_date",
-            "candidate_application_interview__interview_date",
             "email",
             "mobile",
             "country",
@@ -717,12 +619,9 @@ class CandidateApplicationFilter(FilterSet):
             "recruitment_id__closed",
             "recruitment_id__is_active",
             "job_position_id__department_id",
-            "recruitment_id__recruitment_managers",
-            "stage_id__stage_managers",
             "stage_id__stage_type",
             "joining_date",
             "offer_letter_status",
-            "candidate_application_interview__employee_id",
             "source",
         ]
 
